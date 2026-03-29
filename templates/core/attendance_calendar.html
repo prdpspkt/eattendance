@@ -1,0 +1,560 @@
+{% extends 'base.html' %}
+{% load core_extras %}
+
+{% block title %}Attendance Calendar - E-Attendance{% endblock %}
+
+{% block page-title %}Attendance Calendar{% endblock %}
+
+{% block auth_content %}
+<style>
+    .calendar-container {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    .calendar-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        text-align: center;
+    }
+    .calendar-nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .calendar-nav a {
+        color: white;
+        text-decoration: none;
+        padding: 8px 16px;
+        border-radius: 5px;
+        background: rgba(255,255,255,0.2);
+        transition: background 0.3s;
+    }
+    .calendar-nav a:hover {
+        background: rgba(255,255,255,0.3);
+    }
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 1px;
+        background: #dee2e6;
+    }
+    .calendar-day-header {
+        background: #f8f9fa;
+        padding: 10px;
+        text-align: center;
+        font-weight: bold;
+        color: #495057;
+        font-size: 14px;
+    }
+    .calendar-day {
+        background: white;
+        min-height: 100px;
+        padding: 8px;
+        position: relative;
+        transition: background 0.2s;
+    }
+    .calendar-day:hover {
+        background: #f8f9fa;
+    }
+    .calendar-day.other-month {
+        background: #f8f9fa;
+        color: #adb5bd;
+    }
+    .calendar-day.today {
+        background: #fff3cd;
+    }
+    .day-number {
+        font-weight: bold;
+        font-size: 16px;
+        margin-bottom: 5px;
+        color: #495057;
+    }
+    .attendance-indicator {
+        font-size: 11px;
+        padding: 3px 6px;
+        border-radius: 4px;
+        margin-bottom: 3px;
+        cursor: pointer;
+    }
+    .attendance-present {
+        background: #d4edda;
+        color: #155724;
+    }
+    .attendance-late {
+        background: #fff3cd;
+        color: #856404;
+    }
+    .attendance-absent {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    .attendance-half-day {
+        background: #d1ecf1;
+        color: #0c5460;
+    }
+    .attendance-on-leave {
+        background: #cce5ff;
+        color: #004085;
+    }
+    .attendance-weekend {
+        background: #e2e3e5;
+        color: #383d41;
+    }
+    .attendance-details {
+        font-size: 10px;
+        color: #6c757d;
+    }
+    .stat-card {
+        border-radius: 8px;
+        padding: 15px;
+        text-align: center;
+        border: none;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .stat-card h6 {
+        font-size: 12px;
+        color: #6c757d;
+        margin-bottom: 5px;
+    }
+    .stat-card .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+    }
+    .stat-card.present { border-left: 4px solid #28a745; }
+    .stat-card.late { border-left: 4px solid #ffc107; }
+    .stat-card.absent { border-left: 4px solid #dc3545; }
+    .stat-card.half-day { border-left: 4px solid #17a2b8; }
+    .stat-card.on-leave { border-left: 4px solid #007bff; }
+    .stat-card.overtime { border-left: 4px solid #6f42c1; }
+    .stat-card.working-hours { border-left: 4px solid #20c997; }
+    .stat-card.leave-days { border-left: 4px solid #fd7e14; }
+
+    /* Leave and Todo indicators */
+    .leave-indicator {
+        font-size: 11px;
+        padding: 3px 6px;
+        border-radius: 4px;
+        margin-bottom: 3px;
+        background: #ffe5d0;
+        color: #d35400;
+        cursor: pointer;
+    }
+    .todo-indicator {
+        font-size: 11px;
+        padding: 3px 6px;
+        border-radius: 4px;
+        margin-bottom: 3px;
+        background: #e8f5e9;
+        color: #2e7d32;
+        cursor: pointer;
+    }
+
+    /* Modal styles */
+    .modal-content {
+        border-radius: 10px;
+        border: none;
+    }
+    .modal-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px 10px 0 0;
+    }
+    .attendance-detail-row {
+        padding: 8px 0;
+        border-bottom: 1px solid #dee2e6;
+    }
+    .attendance-detail-row:last-child {
+        border-bottom: none;
+    }
+    .detail-label {
+        font-weight: 600;
+        color: #495057;
+    }
+</style>
+
+<div class="row mb-4">
+    <!-- Statistics Cards -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 col-lg-2 mb-3">
+                        <div class="stat-card present">
+                            <h6>Present</h6>
+                            <div class="stat-value text-success">{{ stats.present }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-2 mb-3">
+                        <div class="stat-card late">
+                            <h6>Late</h6>
+                            <div class="stat-value text-warning">{{ stats.late }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-2 mb-3">
+                        <div class="stat-card absent">
+                            <h6>Absent</h6>
+                            <div class="stat-value text-danger">{{ stats.absent }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-2 mb-3">
+                        <div class="stat-card half-day">
+                            <h6>Half Day</h6>
+                            <div class="stat-value text-info">{{ stats.half_day }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-2 mb-3">
+                        <div class="stat-card on-leave">
+                            <h6>On Leave</h6>
+                            <div class="stat-value text-primary">{{ stats.on_leave }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-2 mb-3">
+                        <div class="stat-card working-hours">
+                            <h6>Total Hours</h6>
+                            <div class="stat-value text-teal">{{ stats.total_working_hours|floatformat:1 }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-2 mb-3">
+                        <div class="stat-card leave-days">
+                            <h6>Leave Days</h6>
+                            <div class="stat-value text-warning">{{ stats.leave_days }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="calendar-container">
+            <!-- Calendar Header -->
+            <div class="calendar-header">
+                <div class="calendar-nav">
+                    <a href="?month={{ prev_month }}&year={{ prev_year }}{% if viewing_other %}&employee_id={{ employee.id }}{% endif %}">
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </a>
+                    <h4 class="mb-0">
+                        {{ month_name }} {{ year }}
+                        {% if viewing_other %}
+                            <br><small>{{ employee.user.get_full_name }}</small>
+                        {% endif %}
+                    </h4>
+                    <a href="?month={{ next_month }}&year={{ next_year }}{% if viewing_other %}&employee_id={{ employee.id }}{% endif %}">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </a>
+                </div>
+                <a href="{% url 'attendance_calendar' %}{% if viewing_other %}?employee_id={{ employee.id }}{% endif %}" class="btn btn-sm btn-light mt-2">
+                    <i class="bi bi-calendar3"></i> Today
+                </a>
+                {% if not viewing_other %}
+                <a href="{% url 'request_leave' %}" class="btn btn-sm btn-warning mt-2">
+                    <i class="bi bi-calendar-plus"></i> Request Leave
+                </a>
+                {% else %}
+                <a href="{% url 'devices:employee_detail' employee.id %}" class="btn btn-sm btn-secondary mt-2">
+                    <i class="bi bi-arrow-left"></i> Back to Employee
+                </a>
+                {% endif %}
+                {% if viewing_other %}
+                <a href="{% url 'request_leave' %}?employee_id={{ employee.id }}" class="btn btn-sm btn-warning mt-2">
+                    <i class="bi bi-calendar-plus"></i> Add Leave
+                </a>
+                <a href="{% url 'my_travel_orders' %}?employee_id={{ employee.id }}&create=true" class="btn btn-sm btn-info mt-2">
+                    <i class="bi bi-airplane"></i> Add Travel Order
+                </a>
+                {% endif %}
+            </div>
+
+            <!-- Calendar Grid -->
+            <div class="calendar-grid">
+                <!-- Day Headers -->
+                <div class="calendar-day-header">Sun</div>
+                <div class="calendar-day-header">Mon</div>
+                <div class="calendar-day-header">Tue</div>
+                <div class="calendar-day-header">Wed</div>
+                <div class="calendar-day-header">Thu</div>
+                <div class="calendar-day-header">Fri</div>
+                <div class="calendar-day-header">Sat</div>
+
+                <!-- Calendar Days -->
+                {% for week in cal %}
+                    {% for day in week %}
+                        <div class="calendar-day {% if day == 0 %}other-month{% endif %}">
+                            {% if day > 0 %}
+                                <div class="day-number">{{ day }}</div>
+
+                                <!-- Display leave indicator -->
+                                {% if day in leave_by_date %}
+                                    {% with leave=leave_by_date|get_item:day %}
+                                    <div class="leave-indicator" data-bs-toggle="modal" data-bs-target="#leaveModal{{ day }}">
+                                        <i class="bi bi-calendar-x"></i>
+                                        {{ leave.leave_type.name }}
+                                    </div>
+                                    {% endwith %}
+                                {% endif %}
+
+                                <!-- Display todo indicator -->
+                                {% if day in todos_by_date %}
+                                    {% with todos=todos_by_date|get_item:day %}
+                                        {% for todo in todos %}
+                                        <div class="todo-indicator">
+                                            <i class="bi bi-list-task"></i>
+                                            {{ todo.title }}
+                                        </div>
+                                        {% endfor %}
+                                    {% endwith %}
+                                {% endif %}
+
+                                <!-- Display attendance -->
+                                {% for attendance in attendance_list %}
+                                    {% if attendance.date.day == day %}
+                                        <div class="attendance-indicator
+                                            {% if attendance.status == 'PRESENT' %}attendance-present
+                                            {% elif attendance.status == 'LATE' %}attendance-late
+                                            {% elif attendance.status == 'ABSENT' %}attendance-absent
+                                            {% elif attendance.status == 'HALF_DAY' %}attendance-half-day
+                                            {% elif attendance.status == 'ON_LEAVE' %}attendance-on-leave
+                                            {% endif %}"
+                                             data-bs-toggle="modal"
+                                             data-bs-target="#attendanceModal{{ day }}">
+                                            <i class="bi bi-clock"></i>
+                                            {% if attendance.check_in %}
+                                                {{ attendance.check_in|time:"H:i" }}
+                                            {% else %}
+                                                {{ attendance.get_status_display }}
+                                            {% endif %}
+                                        </div>
+                                        {% if attendance.check_out %}
+                                            <div class="attendance-details">
+                                                <i class="bi bi-arrow-return-left"></i> {{ attendance.check_out|time:"H:i" }}
+                                            </div>
+                                        {% endif %}
+                                        {% if attendance.working_hours %}
+                                            <div class="attendance-details">
+                                                <i class="bi bi-hourglass-split"></i> {{ attendance.working_hours }}h
+                                            </div>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance Detail Modals -->
+{% for day, attendance in attendance_by_date.items %}
+<div class="modal fade" id="attendanceModal{{ day }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-calendar-check"></i>
+                    {{ attendance.date|date:"l, d F Y" }}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="attendance-detail-row">
+                    <div class="detail-label">Status:</div>
+                    <div>
+                        {% if attendance.status == 'PRESENT' %}
+                            <span class="badge bg-success">Present</span>
+                        {% elif attendance.status == 'LATE' %}
+                            <span class="badge bg-warning">Late</span>
+                        {% elif attendance.status == 'ABSENT' %}
+                            <span class="badge bg-danger">Absent</span>
+                        {% elif attendance.status == 'HALF_DAY' %}
+                            <span class="badge bg-info">Half Day</span>
+                        {% elif attendance.status == 'ON_LEAVE' %}
+                            <span class="badge bg-primary">On Leave</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ attendance.status }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if attendance.check_in %}
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-arrow-right-circle text-success"></i> Check In:</div>
+                    <div>{{ attendance.check_in|date:"H:i" }}</div>
+                </div>
+                {% endif %}
+                {% if attendance.check_out %}
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-arrow-left-circle text-danger"></i> Check Out:</div>
+                    <div>{{ attendance.check_out|date:"H:i" }}</div>
+                </div>
+                {% endif %}
+                {% if attendance.working_hours %}
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-clock"></i> Working Hours:</div>
+                    <div>{{ attendance.working_hours }} hours</div>
+                </div>
+                {% endif %}
+                {% if attendance.overtime_hours %}
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-clock-history text-primary"></i> Overtime:</div>
+                    <div class="text-primary">+{{ attendance.overtime_hours }} hours</div>
+                </div>
+                {% endif %}
+                {% if attendance.late_minutes %}
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-exclamation-triangle text-warning"></i> Late By:</div>
+                    <div class="text-warning">{{ attendance.late_minutes }} minutes</div>
+                </div>
+                {% endif %}
+                {% if attendance.shift %}
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-calendar-range"></i> Shift:</div>
+                    <div>{{ attendance.shift.name }} ({{ attendance.shift.start_time }} - {{ attendance.shift.end_time }})</div>
+                </div>
+                {% endif %}
+                {% if attendance.notes %}
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-sticky"></i> Notes:</div>
+                    <div><span class="badge bg-warning">{{ attendance.notes }}</span></div>
+                </div>
+                {% endif %}
+
+                <!-- Show leave info if exists -->
+                {% if day in leave_by_date %}
+                {% with leave=leave_by_date|get_item:day %}
+                <hr>
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-calendar-x text-warning"></i> Leave:</div>
+                    <div>
+                        <span class="badge bg-warning">{{ leave.leave_type.name }}</span>
+                    </div>
+                </div>
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-calendar-range"></i> Duration:</div>
+                    <div>{{ leave.start_date|date:"j M Y" }} - {{ leave.end_date|date:"j M Y" }}</div>
+                </div>
+                {% if leave.reason %}
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-chat-left"></i> Reason:</div>
+                    <div>{{ leave.reason }}</div>
+                </div>
+                {% endif %}
+                {% endwith %}
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- Leave Detail Modals (for days with only leave, no attendance) -->
+{% for day, leave in leave_by_date.items %}
+{% if day not in attendance_by_date %}
+<div class="modal fade" id="leaveModal{{ day }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #fd7e14 0%, #e67e22 100%);">
+                <h5 class="modal-title">
+                    <i class="bi bi-calendar-x"></i>
+                    Leave - {{ leave.start_date|date:"l, d F Y" }}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="attendance-detail-row">
+                    <div class="detail-label">Leave Type:</div>
+                    <div>
+                        <span class="badge bg-warning">{{ leave.leave_type.name }}</span>
+                    </div>
+                </div>
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-calendar-range"></i> Duration:</div>
+                    <div>
+                        {{ leave.start_date|date:"j M Y" }} - {{ leave.end_date|date:"j M Y" }}
+                        ({{ leave.start_date|timesince:leave.end_date }})
+                    </div>
+                </div>
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-check-circle"></i> Status:</div>
+                    <div>
+                        {% if leave.status == 'APPROVED' %}
+                            <span class="badge bg-success">Approved</span>
+                        {% elif leave.status == 'PENDING' %}
+                            <span class="badge bg-warning">Pending</span>
+                        {% elif leave.status == 'REJECTED' %}
+                            <span class="badge bg-danger">Rejected</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if leave.reason %}
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-chat-left"></i> Reason:</div>
+                    <div>{{ leave.reason }}</div>
+                </div>
+                {% endif %}
+                {% if leave.attachment %}
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-paperclip"></i> Attachment:</div>
+                    <div>
+                        <a href="{{ leave.attachment.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-download"></i> Download
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+                <div class="attendance-detail-row">
+                    <div class="detail-label"><i class="bi bi-calendar3"></i> Applied On:</div>
+                    <div>{{ leave.created_at|date:"j M Y, H:i" }}</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<!-- Legend -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> Legend</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-2">
+                        <span class="attendance-indicator attendance-present">Present</span>
+                    </div>
+                    <div class="col-md-2">
+                        <span class="attendance-indicator attendance-late">Late</span>
+                    </div>
+                    <div class="col-md-2">
+                        <span class="attendance-indicator attendance-absent">Absent</span>
+                    </div>
+                    <div class="col-md-2">
+                        <span class="attendance-indicator attendance-half-day">Half Day</span>
+                    </div>
+                    <div class="col-md-2">
+                        <span class="attendance-indicator attendance-on-leave">On Leave</span>
+                    </div>
+                    <div class="col-md-2">
+                        <span class="leave-indicator"><i class="bi bi-calendar-x"></i> Leave</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

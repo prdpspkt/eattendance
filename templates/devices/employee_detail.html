@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ employee.user.get_full_name }} - Employee Details{% endblock %}
+
+{% block page-title %}Employee Details{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-12">
+        <a href="{% url 'devices:employee_management' %}" class="btn btn-outline-secondary mb-3">
+            <i class="bi bi-arrow-left"></i> Back to Employees
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left Column: Employee Info -->
+    <div class="col-md-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-body text-center">
+                {% if employee.user.profile_picture %}
+                    <img src="{{ employee.user.profile_picture.url }}"
+                         class="rounded-circle mb-3"
+                         width="150"
+                         height="150"
+                         alt="Profile Picture">
+                {% else %}
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mb-3"
+                         style="width: 150px; height: 150px; font-size: 48px; margin: 0 auto;">
+                        {{ employee.user.get_full_name|first|upper }}
+                    </div>
+                {% endif %}
+                <h4>{{ employee.user.get_full_name }}</h4>
+                <p class="text-muted mb-1">{{ employee.user.role }}</p>
+                <p class="mb-2"><strong>{{ employee.employee_id }}</strong></p>
+                <span class="badge bg-{% if employee.employment_status == 'ACTIVE' %}success{% else %}warning{% endif %}">
+                    {{ employee.get_employment_status_display }}
+                </span>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> Quick Actions</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'devices:employee_edit' employee.id %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil"></i> Edit Employee
+                    </a>
+                    <a href="{% url 'attendance_calendar' %}?employee_id={{ employee.id }}"
+                       class="btn btn-outline-success">
+                        <i class="bi bi-calendar3"></i> View Attendance Calendar
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-cpu"></i> Device Access</h6>
+            </div>
+            <div class="card-body">
+                {% if employee_devices %}
+                    <ul class="list-group list-group-flush">
+                        {% for ed in employee_devices %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ ed.device.name }}</strong>
+                                <br>
+                                <small class="text-muted">UID: {{ ed.device_uid }}</small>
+                            </div>
+                            <span class="badge bg-primary">{{ ed.device.location|default:'N/A' }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0">No devices assigned</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Details & Stats -->
+    <div class="col-md-8">
+        <!-- Personal Information -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0"><i class="bi bi-person"></i> Personal Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Email:</strong> {{ employee.user.email }}</p>
+                        <p class="mb-1"><strong>Phone:</strong> {{ employee.user.phone|default:'N/A' }}</p>
+                        <p class="mb-1"><strong>Gender:</strong> {{ employee.get_gender_display|default:'N/A' }}</p>
+                        <p class="mb-1"><strong>Blood Group:</strong> {{ employee.blood_group|default:'N/A' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Department:</strong> {{ employee.department.name|default:'N/A' }}</p>
+                        <p class="mb-1"><strong>Join Date:</strong> {{ employee.join_date|date:"d M Y" }}</p>
+                        <p class="mb-1"><strong>Device UID:</strong> {{ employee.device_uid|default:'N/A' }}</p>
+                        <p class="mb-0"><strong>Date of Birth:</strong> {{ employee.date_of_birth|date:"d M Y"|default:'N/A' }}</p>
+                    </div>
+                </div>
+                {% if employee.address %}
+                <hr>
+                <p class="mb-1"><strong>Address:</strong> {{ employee.address }}</p>
+                {% if employee.city %}
+                <p class="mb-1">
+                    <strong>City:</strong> {{ employee.city }}
+                    {% if employee.postal_code %}, {{ employee.postal_code }}{% endif %}
+                </p>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Emergency Contact -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0"><i class="bi bi-telephone"></i> Emergency Contact</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Contact Name:</strong> {{ employee.emergency_contact_name|default:'N/A' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-0"><strong>Contact Phone:</strong> {{ employee.emergency_contact_phone|default:'N/A' }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Attendance Statistics -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h6 class="mb-0"><i class="bi bi-graph-up"></i> Monthly Attendance Statistics</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    <i class="bi bi-calendar3"></i>
+                    Showing statistics for {% now "F Y" %}
+                </p>
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <div class="card text-center border-success">
+                            <div class="card-body">
+                                <h3 class="text-success mb-0">{{ stats.present_days }}</h3>
+                                <small class="text-muted">Present</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card text-center border-warning">
+                            <div class="card-body">
+                                <h3 class="text-warning mb-0">{{ stats.late_days }}</h3>
+                                <small class="text-muted">Late</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card text-center border-danger">
+                            <div class="card-body">
+                                <h3 class="text-danger mb-0">{{ stats.absent_days }}</h3>
+                                <small class="text-muted">Absent</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card text-center border-info">
+                            <div class="card-body">
+                                <h3 class="text-info mb-0">{{ stats.half_days }}</h3>
+                                <small class="text-muted">Half Day</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card text-center border-primary">
+                            <div class="card-body">
+                                <h4 class="text-primary mb-0">{{ stats.total_working_hours|floatformat:1 }} hrs</h4>
+                                <small class="text-muted">Total Working Hours</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card text-center border-purple" style="border-color: #6f42c1 !important;">
+                            <div class="card-body">
+                                <h4 class="mb-0" style="color: #6f42c1;">{{ stats.total_overtime|floatformat:1 }} hrs</h4>
+                                <small class="text-muted">Total Overtime</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center mt-3">
+                    <a href="{% url 'attendance_calendar' %}?employee_id={{ employee.id }}"
+                       class="btn btn-success">
+                        <i class="bi bi-calendar3"></i> View Full Attendance Calendar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

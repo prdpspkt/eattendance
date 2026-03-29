@@ -1,0 +1,338 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if is_edit %}Edit Employee{% else %}Add New Employee{% endif %} - E-Attendance System{% endblock %}
+
+{% block page-title %}{% if is_edit %}Edit Employee{% else %}Add New Employee{% endif %}{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-12">
+        <a href="{% url 'devices:employee_management' %}" class="btn btn-outline-secondary mb-3">
+            <i class="bi bi-arrow-left"></i> Back to Employees
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <!-- User Account Information -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0"><i class="bi bi-person-circle"></i> User Account Information</h6>
+                </div>
+                <div class="card-body">
+                    {% if is_edit %}
+                        <!-- Edit mode: Use user_form -->
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="{{ user_form.first_name.id_for_label }}" class="form-label">First Name</label>
+                                    {{ user_form.first_name }}
+                                    {% if user_form.first_name.errors %}
+                                        <div class="text-danger small mt-1">{{ user_form.first_name.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="{{ user_form.last_name.id_for_label }}" class="form-label">Last Name</label>
+                                    {{ user_form.last_name }}
+                                    {% if user_form.last_name.errors %}
+                                        <div class="text-danger small mt-1">{{ user_form.last_name.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="{{ user_form.role.id_for_label }}" class="form-label">Role</label>
+                                    {{ user_form.role }}
+                                    {% if user_form.role.errors %}
+                                        <div class="text-danger small mt-1">{{ user_form.role.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ user_form.email.id_for_label }}" class="form-label">Email</label>
+                                    {{ user_form.email }}
+                                    {% if user_form.email.errors %}
+                                        <div class="text-danger small mt-1">{{ user_form.email.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ user_form.phone.id_for_label }}" class="form-label">Phone</label>
+                                    {{ user_form.phone }}
+                                    {% if user_form.phone.errors %}
+                                        <div class="text-danger small mt-1">{{ user_form.phone.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ user_form.profile_picture.id_for_label }}" class="form-label">Profile Picture</label>
+                            {{ user_form.profile_picture }}
+                            {% if user_form.profile_picture.errors %}
+                                <div class="text-danger small mt-1">{{ user_form.profile_picture.errors }}</div>
+                            {% endif %}
+                            <small class="text-muted">Upload a new profile picture (optional)</small>
+                            {% if employee.user.profile_picture %}
+                                <div class="mt-2">
+                                    <img src="{{ employee.user.profile_picture.url }}" class="rounded-circle" width="80" height="80">
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <!-- Create mode: Show all fields -->
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="username" class="form-label">Username <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" name="username" id="username"
+                                           placeholder="Enter username" required>
+                                    <small class="text-muted">Unique username for login</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="password" class="form-label">Password</label>
+                                    <input type="password" class="form-control" name="password" id="password"
+                                           placeholder="Enter password (optional)">
+                                    <small class="text-muted">Leave blank to generate random password</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="role" class="form-label">Role <span class="text-danger">*</span></label>
+                                    <select class="form-select" name="role" id="role" required>
+                                        {% for choice in form.fields.role.choices %}
+                                            <option value="{{ choice.0 }}" {% if choice.0 == 'EMPLOYEE' %}selected{% endif %}>
+                                                {{ choice.1 }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="first_name" class="form-label">First Name <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" name="first_name" id="first_name"
+                                           placeholder="Enter first name" required>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="last_name" class="form-label">Last Name <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" name="last_name" id="last_name"
+                                           placeholder="Enter last name" required>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
+                                    <input type="email" class="form-control" name="email" id="email"
+                                           placeholder="Enter email address" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="phone" class="form-label">Phone</label>
+                                    <input type="text" class="form-control" name="phone" id="phone"
+                                           placeholder="Enter phone number">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="profile_picture" class="form-label">Profile Picture</label>
+                                    <input type="file" class="form-control" name="profile_picture" id="profile_picture"
+                                           accept="image/*">
+                                    <small class="text-muted">Upload profile picture (optional)</small>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Employee Information -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="bi bi-person-badge"></i> Employee Information</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ emp_form.employee_id.id_for_label }}" class="form-label">Employee ID <span class="text-danger">*</span></label>
+                                {{ emp_form.employee_id }}
+                                {% if emp_form.employee_id.errors %}
+                                    <div class="text-danger small mt-1">{{ emp_form.employee_id.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ emp_form.department.id_for_label }}" class="form-label">Department</label>
+                                {{ emp_form.department }}
+                                {% if emp_form.department.errors %}
+                                    <div class="text-danger small mt-1">{{ emp_form.department.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="{{ emp_form.gender.id_for_label }}" class="form-label">Gender</label>
+                                {{ emp_form.gender }}
+                                {% if emp_form.gender.errors %}
+                                    <div class="text-danger small mt-1">{{ emp_form.gender.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="{{ emp_form.date_of_birth.id_for_label }}" class="form-label">Date of Birth</label>
+                                {{ emp_form.date_of_birth }}
+                                {% if emp_form.date_of_birth.errors %}
+                                    <div class="text-danger small mt-1">{{ emp_form.date_of_birth.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="{{ emp_form.blood_group.id_for_label }}" class="form-label">Blood Group</label>
+                                {{ emp_form.blood_group }}
+                                {% if emp_form.blood_group.errors %}
+                                    <div class="text-danger small mt-1">{{ emp_form.blood_group.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ emp_form.join_date.id_for_label }}" class="form-label">Join Date <span class="text-danger">*</span></label>
+                                {{ emp_form.join_date }}
+                                {% if emp_form.join_date.errors %}
+                                    <div class="text-danger small mt-1">{{ emp_form.join_date.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ emp_form.employment_status.id_for_label }}" class="form-label">Employment Status</label>
+                                {{ emp_form.employment_status }}
+                                {% if emp_form.employment_status.errors %}
+                                    <div class="text-danger small mt-1">{{ emp_form.employment_status.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ emp_form.device_uid.id_for_label }}" class="form-label">Device UID</label>
+                        {{ emp_form.device_uid }}
+                        {% if emp_form.device_uid.errors %}
+                            <div class="text-danger small mt-1">{{ emp_form.device_uid.errors }}</div>
+                        {% endif %}
+                        <small class="text-muted">User ID on biometric device (if enrolled)</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="bi bi-geo-alt"></i> Contact Information</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="{{ emp_form.address.id_for_label }}" class="form-label">Address</label>
+                        {{ emp_form.address }}
+                        {% if emp_form.address.errors %}
+                            <div class="text-danger small mt-1">{{ emp_form.address.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="{{ emp_form.city.id_for_label }}" class="form-label">City</label>
+                                {{ emp_form.city }}
+                                {% if emp_form.city.errors %}
+                                    <div class="text-danger small mt-1">{{ emp_form.city.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="{{ emp_form.postal_code.id_for_label }}" class="form-label">Postal Code</label>
+                                {{ emp_form.postal_code }}
+                                {% if emp_form.postal_code.errors %}
+                                    <div class="text-danger small mt-1">{{ emp_form.postal_code.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Emergency Contact -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="mb-0"><i class="bi bi-telephone"></i> Emergency Contact</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ emp_form.emergency_contact_name.id_for_label }}" class="form-label">Contact Name</label>
+                                {{ emp_form.emergency_contact_name }}
+                                {% if emp_form.emergency_contact_name.errors %}
+                                    <div class="text-danger small mt-1">{{ emp_form.emergency_contact_name.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ emp_form.emergency_contact_phone.id_for_label }}" class="form-label">Contact Phone</label>
+                                {{ emp_form.emergency_contact_phone }}
+                                {% if emp_form.emergency_contact_phone.errors %}
+                                    <div class="text-danger small mt-1">{{ emp_form.emergency_contact_phone.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> {% if is_edit %}Save Changes{% else %}Create Employee{% endif %}
+                </button>
+                <a href="{% url 'devices:employee_management' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle"></i> Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Link Enrollments - E-Attendance System{% endblock %}
+
+{% block page-title %}Link Device Enrollments{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-person-plus"></i> Unlinked Device Enrollments</h6>
+                    <span class="badge bg-dark">{{ unlinked_enrollments.count }}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    These users are enrolled on devices but not linked to employees in the system.
+                    Link them to complete the setup.
+                </p>
+
+                {% if unlinked_enrollments %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Device</th>
+                                <th>User Name (from Device)</th>
+                                <th>Device UID</th>
+                                <th>Link Employee</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for enrollment in unlinked_enrollments %}
+                            <tr>
+                                <td>
+                                    <strong>{{ enrollment.device.name }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ enrollment.device.ip_address }}</small>
+                                </td>
+                                <td>
+                                    <strong>{{ enrollment.user_name|default:"Unknown" }}</strong>
+                                </td>
+                                <td><span class="badge bg-primary">{{ enrollment.device_uid }}</span></td>
+                                <td>
+                                    <form method="post" action="{% url 'devices:link_employee' enrollment.id %}" class="d-inline">
+                                        {% csrf_token %}
+                                        <select name="employee_id" class="form-select form-select-sm" required>
+                                            <option value="">Select Employee...</option>
+                                            {% for emp in employees %}
+                                            <option value="{{ emp.id }}">{{ emp.user.get_full_name }} ({{ emp.employee_id }})</option>
+                                            {% endfor %}
+                                        </select>
+                                </td>
+                                <td>
+                                    <button type="submit" class="btn btn-sm btn-success">
+                                        <i class="bi bi-link"></i> Link
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-check-circle" style="font-size: 4rem; color: #28a745;"></i>
+                    <p class="text-muted mt-3">All enrollments are linked!</p>
+                    <a href="{% url 'devices:device_list' %}" class="btn btn-primary">
+                        <i class="bi bi-cpu"></i> View Devices
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

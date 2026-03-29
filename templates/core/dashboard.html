@@ -1,0 +1,267 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - E-Attendance{% endblock %}
+
+{% block page-title %}Dashboard{% endblock %}
+
+{% block auth_content %}
+{% if not has_employee_profile %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-warning" role="alert">
+            <h5 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> No Employee Profile Found</h5>
+            <p class="mb-0">Your user account is not associated with an employee profile. Please contact the administrator to set up your profile.</p>
+            {% if user.is_superuser or user.role == 'OFFICE_ADMIN' %}
+            <hr>
+            <p class="mb-0">As an administrator, you can manage devices and employees using the navigation menu on the left.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 class="mb-3">Welcome back, {% if employee %}{{ employee.user.get_full_name }}{% else %}{{ user.username }}{% endif %}! 👋</h2>
+        <p class="text-muted">Here's what's happening with your attendance today.</p>
+    </div>
+</div>
+
+<!-- Today's Attendance -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-calendar-check"></i> Today's Attendance
+            </div>
+            <div class="card-body">
+                {% if today_attendance %}
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <h5 class="text-muted">Check In</h5>
+                        <h3>{{ today_attendance.check_in|date:"H:i" }}</h3>
+                    </div>
+                    <div class="col-md-3">
+                        <h5 class="text-muted">Check Out</h5>
+                        <h3>{% if today_attendance.check_out %}{{ today_attendance.check_out|date:"H:i" }}{% else %}--:--{% endif %}</h3>
+                    </div>
+                    <div class="col-md-3">
+                        <h5 class="text-muted">Working Hours</h5>
+                        <h3>{{ today_attendance.working_hours|default:0 }}h</h3>
+                    </div>
+                    <div class="col-md-3">
+                        <h5 class="text-muted">Status</h5>
+                        <span class="badge bg-{% if today_attendance.status == 'PRESENT' %}success{% elif today_attendance.status == 'LATE' %}warning{% else %}danger{% endif %} fs-6">
+                            {{ today_attendance.get_status_display }}
+                        </span>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-3">
+                    <i class="bi bi-clock-history" style="font-size: 3rem;"></i>
+                    <p class="mt-2">No attendance recorded yet today</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Monthly Stats -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Present Days</h6>
+                        <h3 class="mb-0">{{ monthly_stats.present_days }}</h3>
+                    </div>
+                    <div class="stat-icon bg-success text-white">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Late Arrivals</h6>
+                        <h3 class="mb-0">{{ monthly_stats.late_days }}</h3>
+                    </div>
+                    <div class="stat-icon bg-warning text-white">
+                        <i class="bi bi-exclamation-triangle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Overtime</h6>
+                        <h3 class="mb-0">{{ monthly_stats.total_overtime|floatformat:1 }}h</h3>
+                    </div>
+                    <div class="stat-icon bg-info text-white">
+                        <i class="bi bi-clock"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Total Days</h6>
+                        <h3 class="mb-0">{{ monthly_stats.total_days }}</h3>
+                    </div>
+                    <div class="stat-icon bg-primary text-white">
+                        <i class="bi bi-calendar3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Leave Balances & Pending Requests -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-calendar-event"></i> Leave Balances ({{ "now"|date:"Y" }})
+            </div>
+            <div class="card-body">
+                {% if leave_balances %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Leave Type</th>
+                                <th class="text-center">Total</th>
+                                <th class="text-center">Used</th>
+                                <th class="text-center">Remaining</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for balance in leave_balances %}
+                            <tr>
+                                <td>{{ balance.leave_type.name }}</td>
+                                <td class="text-center">{{ balance.total_days }}</td>
+                                <td class="text-center">{{ balance.used_days }}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-{% if balance.remaining_days > 5 %}success{% elif balance.remaining_days > 2 %}warning{% else %}danger{% endif %}">
+                                        {{ balance.remaining_days }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center">No leave balances found</p>
+                {% endif %}
+                <div class="text-center mt-3">
+                    <a href="{% url 'request_leave' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Request Leave
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-hourglass-split"></i> Pending Requests
+            </div>
+            <div class="card-body">
+                {% if pending_leaves or pending_travels %}
+                <div class="list-group list-group-flush">
+                    {% for leave in pending_leaves %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ leave.leave_type.name }}</h6>
+                                <small class="text-muted">{{ leave.start_date }} to {{ leave.end_date }}</small>
+                            </div>
+                            <span class="badge bg-warning">Pending</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% for travel in pending_travels %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">Travel to {{ travel.destination }}</h6>
+                                <small class="text-muted">{{ travel.start_date|date:"d M Y" }}</small>
+                            </div>
+                            <span class="badge bg-warning">Pending</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-center">No pending requests</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Attendance -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-clock-history"></i> Recent Attendance (Last 7 Days)
+            </div>
+            <div class="card-body">
+                {% if recent_attendance %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Day</th>
+                                <th>Check In</th>
+                                <th>Check Out</th>
+                                <th>Working Hours</th>
+                                <th>Overtime</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for att in recent_attendance %}
+                            <tr>
+                                <td>{{ att.date|date:"d M Y" }}</td>
+                                <td>{{ att.date|date:"l" }}</td>
+                                <td>{% if att.check_in %}{{ att.check_in|date:"H:i" }}{% else %}--:--{% endif %}</td>
+                                <td>{% if att.check_out %}{{ att.check_out|date:"H:i" }}{% else %}--:--{% endif %}</td>
+                                <td>{{ att.working_hours|default:0 }}h</td>
+                                <td>{{ att.overtime_hours|default:0 }}h</td>
+                                <td>
+                                    <span class="badge bg-{% if att.status == 'PRESENT' %}success{% elif att.status == 'LATE' %}warning{% else %}danger{% endif %}">
+                                        {{ att.get_status_display }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center">No recent attendance records</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

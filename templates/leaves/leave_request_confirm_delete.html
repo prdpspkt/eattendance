@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Leave Request - E-Attendance System{% endblock %}
+
+{% block page-title %}Delete Leave Request{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-md-6 offset-md-3">
+        <div class="card shadow-sm">
+            <div class="card-header bg-warning text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    Confirm Delete Leave Request
+                </h6>
+            </div>
+            <div class="card-body">
+                <p>Are you sure you want to delete this leave request?</p>
+
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Warning:</strong> This action cannot be undone.
+                </div>
+
+                <h6>Leave Request Details:</h6>
+                <table class="table table-sm">
+                    <tr>
+                        <th>Employee:</th>
+                        <td>{{ leave_request.employee.user.get_full_name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Leave Type:</th>
+                        <td>{{ leave_request.leave_type.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Duration:</th>
+                        <td>
+                            {{ leave_request.start_date|date:"d M Y" }}
+                            {% if leave_request.end_date != leave_request.start_date %}
+                                to {{ leave_request.end_date|date:"d M Y" }}
+                            {% endif %}
+                            ({{ leave_request.total_days }} day{{ leave_request.total_days|pluralize }})
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td>
+                            {% if leave_request.status == 'PENDING' %}
+                                <span class="badge bg-warning">Pending</span>
+                            {% elif leave_request.status == 'APPROVED' %}
+                                <span class="badge bg-success">Approved</span>
+                            {% elif leave_request.status == 'REJECTED' %}
+                                <span class="badge bg-danger">Rejected</span>
+                            {% elif leave_request.status == 'CANCELLED' %}
+                                <span class="badge bg-secondary">Cancelled</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Reason:</th>
+                        <td>{{ leave_request.reason|truncatewords:20 }}</td>
+                    </tr>
+                </table>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'leave_requests_management' %}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Delete Leave Request
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

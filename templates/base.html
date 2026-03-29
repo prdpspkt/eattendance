@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}E-Attendance System{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+        }
+
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, .8);
+            padding: 12px 20px;
+            margin: 4px 10px;
+            border-radius: 8px;
+        }
+
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            background: rgba(255, 255, 255, .1);
+            color: #fff;
+        }
+
+        .sidebar .nav-link i {
+            margin-right: 10px;
+        }
+
+        .main-content {
+            background: #f8f9fa;
+            min-height: 100vh;
+        }
+
+        .stat-card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, .05);
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card .card-body {
+            padding: 20px;
+        }
+
+        .stat-card .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .navbar-brand {
+            font-weight: 600;
+            font-size: 1.3rem;
+        }
+    </style>
+</head>
+<body>
+{% if user.is_authenticated %}
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse show">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <a href="{% url 'dashboard' %}" class="text-white text-decoration-none">
+                            <i class="bi bi-person-check-fill" style="font-size: 2rem;"></i>
+                            <h5 class="mt-2">E-Attendance</h5>
+                        </a>
+                    </div>
+
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+                               href="{% url 'dashboard' %}">
+                                <i class="bi bi-speedometer2"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'my_attendance' %}active{% endif %}"
+                               href="{% url 'my_attendance' %}">
+                                <i class="bi bi-calendar-check"></i> My Attendance
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'attendance_calendar' %}active{% endif %}"
+                               href="{% url 'attendance_calendar' %}">
+                                <i class="bi bi-calendar3"></i> Attendance Calendar
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'my_leaves' or request.resolver_match.url_name == 'request_leave' %}active{% endif %}"
+                               href="{% url 'my_leaves' %}">
+                                <i class="bi bi-calendar-event"></i> My Leaves
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'my_travel_orders' %}active{% endif %}"
+                               href="{% url 'my_travel_orders' %}">
+                                <i class="bi bi-airplane"></i> My Travel Orders
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'profile' %}active{% endif %}"
+                               href="{% url 'profile' %}">
+                                <i class="bi bi-person"></i> My Profile
+                            </a>
+                        </li>
+                        {% if user.is_superuser or user.role == 'OFFICE_ADMIN' %}
+                            <li class="nav-item mt-3">
+                                <div class="text-white-50 small px-3">ADMINISTRATION</div>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {% if 'devices' in request.resolver_match.app_names %}active{% endif %}"
+                                   href="{% url 'devices:device_list' %}">
+                                    <i class="bi bi-cpu"></i> Devices
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.resolver_match.url_name == 'todays_attendance' %}active{% endif %}"
+                                   href="{% url 'devices:todays_attendance' %}">
+                                    <i class="bi bi-calendar-check"></i> Today's Attendance
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.resolver_match.url_name == 'shift_management' %}active{% endif %}"
+                                   href="{% url 'shift_management' %}">
+                                    <i class="bi bi-clock-history"></i> Shifts
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {% if 'leave_type' in request.resolver_match.url_name %}active{% endif %}"
+                                   href="{% url 'leave_type_management' %}">
+                                    <i class="bi bi-calendar-x"></i> Leave Types
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {% if 'leave_request' in request.resolver_match.url_name %}active{% endif %}"
+                                   href="{% url 'leave_requests_management' %}">
+                                    <i class="bi bi-calendar-check"></i> Leave Requests
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {% if 'travel_order' in request.resolver_match.url_name %}active{% endif %}"
+                                   href="{% url 'travel_orders_management' %}">
+                                    <i class="bi bi-airplane"></i> Travel Orders
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.resolver_match.url_name == 'employee_management' %}active{% endif %}"
+                                   href="{% url 'devices:employee_management' %}">
+                                    <i class="bi bi-people"></i> Employees
+                                </a>
+                            </li>
+                        {% endif %}
+                        <li class="nav-item mt-3">
+                            <a class="nav-link text-danger" href="{% url 'logout' %}">
+                                <i class="bi bi-box-arrow-right"></i> Logout
+                            </a>
+                        </li>
+                    </ul>
+
+                    <div class="mt-4 px-3">
+                        <div class="card bg-dark text-white">
+                            <div class="card-body p-3">
+                                <small class="text-white-50">Logged in as</small>
+                                <div class="fw-bold">{{ user.get_full_name|default:user.username }}</div>
+                                <small class="text-white-50">{{ user.get_role_display }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                <nav class="navbar navbar-expand-lg navbar-light bg-white rounded shadow-sm mb-4">
+                    <div class="container-fluid">
+                        <span class="navbar-brand">
+                            {% block page-title %}Dashboard{% endblock %}
+                        </span>
+                        <div class="d-flex align-items-center">
+                            <span class="text-muted me-3">
+                                <i class="bi bi-calendar3"></i> {% now "jS F Y" %}
+                            </span>
+                            {% if user.profile_picture %}
+                                <img src="{{ user.profile_picture.url }}"
+                                     class="rounded-circle" width="40" height="40" alt="Profile">
+                            {% else %}
+                                <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
+                                     style="width: 40px; height: 40px;">
+                                    {{ user.get_full_name|first|upper|default:user.username|first|upper }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </nav>
+
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                {% block auth_content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+{% else %}
+    {% block content %}{% endblock %}
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

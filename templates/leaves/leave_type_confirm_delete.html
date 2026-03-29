@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Leave Type - E-Attendance System{% endblock %}
+
+{% block page-title %}Delete Leave Type{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-md-6 offset-md-3">
+        <div class="card shadow-sm">
+            <div class="card-header bg-danger text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    Confirm Delete Leave Type
+                </h6>
+            </div>
+            <div class="card-body">
+                <p>Are you sure you want to delete the leave type <strong>"{{ leave_type.name }}"</strong>?</p>
+
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Warning:</strong> This action cannot be undone.
+                </div>
+
+                <h6>Leave Type Details:</h6>
+                <table class="table table-sm">
+                    <tr>
+                        <th>Name:</th>
+                        <td>{{ leave_type.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Code:</th>
+                        <td>{{ leave_type.code }}</td>
+                    </tr>
+                    <tr>
+                        <th>Days Per Year:</th>
+                        <td>{{ leave_type.days_per_year }}</td>
+                    </tr>
+                    <tr>
+                        <th>Is Paid:</th>
+                        <td>{% if leave_type.is_paid %}Yes{% else %}No{% endif %}</td>
+                    </tr>
+                    <tr>
+                        <th>Requires Approval:</th>
+                        <td>{% if leave_type.requires_approval %}Yes{% else %}No{% endif %}</td>
+                    </tr>
+                    {% if leave_type.description %}
+                    <tr>
+                        <th>Description:</th>
+                        <td>{{ leave_type.description }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'leave_type_management' %}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Delete Leave Type
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

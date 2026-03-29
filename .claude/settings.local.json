@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(django-admin:*)",
+      "Bash(python manage.py startapp:*)",
+      "Bash(python manage.py startapp devices)",
+      "Bash(python:*)",
+      "Bash(pip show:*)",
+      "Read(//c/Users/Dell/AppData/Roaming/Python/Python313/site-packages/zk/**)",
+      "Bash(dir C:UsersDelleattendancecoretemplatetags)",
+      "Bash(taskkill:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

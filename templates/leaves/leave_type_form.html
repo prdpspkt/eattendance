@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if is_edit %}Edit Leave Type{% else %}Add New Leave Type{% endif %} - E-Attendance System{% endblock %}
+
+{% block page-title %}{% if is_edit %}Edit Leave Type{% else %}Add New Leave Type{% endif %}{% endblock %}
+
+{% block auth_content %}
+{% load core_extras %}
+
+<div class="row">
+    <div class="col-12">
+        <a href="{% url 'leave_type_management' %}" class="btn btn-outline-secondary mb-3">
+            <i class="bi bi-arrow-left"></i> Back to Leave Types
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-calendar-plus"></i>
+                    {% if is_edit %}Edit Leave Type{% else %}Add New Leave Type{% endif %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.name.id_for_label }}" class="form-label">Leave Type Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="{{ form.name.name }}"
+                                   id="{{ form.name.id_for_label }}"
+                                   value="{{ form.name.value|default:'' }}"
+                                   placeholder="e.g., Annual Leave, Sick Leave"
+                                   required>
+                            {% if form.name.errors %}
+                                <div class="text-danger small mt-1">{{ form.name.errors }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.code.id_for_label }}" class="form-label">Code <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="{{ form.code.name }}"
+                                   id="{{ form.code.id_for_label }}"
+                                   value="{{ form.code.value|default:'' }}"
+                                   placeholder="e.g., AL, SL, CL"
+                                   required>
+                            {% if form.code.errors %}
+                                <div class="text-danger small mt-1">{{ form.code.errors }}</div>
+                            {% endif %}
+                            <small class="text-muted">Short code for reports</small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.description.id_for_label }}" class="form-label">Description</label>
+                        <textarea class="form-control" name="{{ form.description.name }}"
+                                  id="{{ form.description.id_for_label }}"
+                                  rows="3"
+                                  placeholder="Describe this leave type">{{ form.description.value|default:'' }}</textarea>
+                        {% if form.description.errors %}
+                            <div class="text-danger small mt-1">{{ form.description.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="{{ form.days_per_year.id_for_label }}" class="form-label">Days Per Year <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" name="{{ form.days_per_year.name }}"
+                                   id="{{ form.days_per_year.id_for_label }}"
+                                   value="{{ form.days_per_year.value|default:'0' }}"
+                                   min="0" required>
+                            {% if form.days_per_year.errors %}
+                                <div class="text-danger small mt-1">{{ form.days_per_year.errors }}</div>
+                            {% endif %}
+                            <small class="text-muted">Days allowed per year</small>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check mt-4">
+                                <input type="checkbox" class="form-check-input" name="{{ form.is_paid.name }}"
+                                       id="{{ form.is_paid.id_for_label }}"
+                                       {% if form.is_paid.value %}checked{% endif %}>
+                                <label class="form-check-label" for="{{ form.is_paid.id_for_label }}">
+                                    Is Paid Leave
+                                </label>
+                                <small class="d-block text-muted">Check if employees are paid during this leave</small>
+                            </div>
+                            {% if form.is_paid.errors %}
+                                <div class="text-danger small mt-1">{{ form.is_paid.errors }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check mt-4">
+                                <input type="checkbox" class="form-check-input" name="{{ form.requires_approval.name }}"
+                                       id="{{ form.requires_approval.id_for_label }}"
+                                       {% if form.requires_approval.value %}checked{% endif %}>
+                                <label class="form-check-label" for="{{ form.requires_approval.id_for_label }}">
+                                    Requires Approval
+                                </label>
+                                <small class="d-block text-muted">Check if this leave needs manager approval</small>
+                            </div>
+                            {% if form.requires_approval.errors %}
+                                <div class="text-danger small mt-1">{{ form.requires_approval.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="{{ form.is_active.name }}"
+                                   id="{{ form.is_active.id_for_label }}"
+                                   {% if form.is_active.value %}checked{% endif %}>
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                Active
+                            </label>
+                            <small class="d-block text-muted">Uncheck to disable this leave type</small>
+                        </div>
+                        {% if form.is_active.errors %}
+                            <div class="text-danger small mt-1">{{ form.is_active.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> {% if is_edit %}Save Changes{% else %}Create Leave Type{% endif %}
+                        </button>
+                        <a href="{% url 'leave_type_management' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> Leave Type Information
+            </div>
+            <div class="card-body">
+                <h6>Understanding Leave Type Settings:</h6>
+                <ul>
+                    <li><strong>Name & Code:</strong> Display name and short code for reports (e.g., Annual Leave - AL)</li>
+                    <li><strong>Days Per Year:</strong> Maximum number of days allowed per year for this leave type</li>
+                    <li><strong>Is Paid:</strong> Whether employees receive salary during this leave</li>
+                    <li><strong>Requires Approval:</strong> Whether leave requests need manager approval before taking effect</li>
+                    <li><strong>Active:</strong> Only active leave types are available for selection in leave requests</li>
+                </ul>
+                <div class="alert alert-info">
+                    <strong>Example:</strong> Annual Leave with 20 days/year, paid, requires approval<br>
+                    - Employees can request up to 20 days per year<br>
+                    - They receive full salary during leave<br>
+                    - Manager must approve before leave is granted
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

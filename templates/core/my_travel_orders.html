@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+
+{% block title %}My Travel Orders - E-Attendance{% endblock %}
+
+{% block page-title %}My Travel Orders{% endblock %}
+
+{% block auth_content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                {% if viewing_other %}
+                <h5 class="mb-0">Travel Orders for {{ employee.user.get_full_name }}</h5>
+                {% else %}
+                <h5 class="mb-0">My Travel Orders</h5>
+                {% endif %}
+            </div>
+            <div>
+                {% if viewing_other %}
+                <a href="{% url 'my_travel_orders' %}?employee_id={{ employee.id }}&create=true" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Add Travel Order
+                </a>
+                {% else %}
+                <a href="{% url 'request_travel_order' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Add Travel Order
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Travel Orders</h5>
+                    <span class="badge bg-primary">{{ travel_orders.count }}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if travel_orders %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Purpose</th>
+                                <th>Destination</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in travel_orders %}
+                            <tr>
+                                <td>
+                                    <strong>{{ order.purpose }}</strong>
+                                    <br>
+                                    <small class="text-muted">Created on {{ order.created_at|date:"d M Y" }}</small>
+                                </td>
+                                <td>
+                                    {{ order.destination }}
+                                    {% if order.distance_km %}
+                                        <br>
+                                        <small class="text-muted">{{ order.distance_km }} km</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ order.start_date|date:"d M Y" }}
+                                    <br>
+                                    {% if order.end_date %}
+                                        to {{ order.end_date|date:"d M Y" }}
+                                    {% else %}
+                                        <small class="text-muted">Same day</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if order.status == 'PENDING' %}
+                                        <span class="badge bg-warning">Pending</span>
+                                    {% elif order.status == 'APPROVED' %}
+                                        <span class="badge bg-success">Approved</span>
+                                    {% elif order.status == 'REJECTED' %}
+                                        <span class="badge bg-danger">Rejected</span>
+                                    {% elif order.status == 'COMPLETED' %}
+                                        <span class="badge bg-info">Completed</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" type="button"
+                                            data-bs-toggle="modal" data-bs-target="#orderModal{{ order.id }}">
+                                        <i class="bi bi-eye"></i> View
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-geo-alt" style="font-size: 4rem; color: #dee2e6;"></i>
+                    <p class="text-muted mt-3">No travel orders found.</p>
+                    <p class="text-muted small">
+                        Travel orders can be created for official business trips and field visits.
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% for order in travel_orders %}
+<div class="modal fade" id="orderModal{{ order.id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Travel Order Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <td class="text-muted" width="30%">Purpose:</td>
+                        <td><strong>{{ order.purpose }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Destination:</td>
+                        <td>{{ order.destination }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Duration:</td>
+                        <td>
+                            {{ order.start_date|date:"d M Y" }}
+                            {% if order.end_date %}
+                                to {{ order.end_date|date:"d M Y" }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if order.distance_km %}
+                    <tr>
+                        <td class="text-muted">Distance:</td>
+                        <td>{{ order.distance_km }} km</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td class="text-muted">Status:</td>
+                        <td>
+                            {% if order.status == 'PENDING' %}
+                                <span class="badge bg-warning">Pending</span>
+                            {% elif order.status == 'APPROVED' %}
+                                <span class="badge bg-success">Approved</span>
+                            {% elif order.status == 'REJECTED' %}
+                                <span class="badge bg-danger">Rejected</span>
+                            {% elif order.status == 'COMPLETED' %}
+                                <span class="badge bg-info">Completed</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Created On:</td>
+                        <td>{{ order.created_at|date:"d M Y, H:i" }}</td>
+                    </tr>
+                    {% if order.approved_at %}
+                    <tr>
+                        <td class="text-muted">Approved On:</td>
+                        <td>{{ order.approved_at|date:"d M Y, H:i" }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if order.approved_by %}
+                    <tr>
+                        <td class="text-muted">Approved By:</td>
+                        <td>{{ order.approved_by.get_full_name }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if order.description %}
+                    <tr>
+                        <td class="text-muted">Description:</td>
+                        <td>{{ order.description }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if order.rejection_reason %}
+                    <tr>
+                        <td class="text-muted">Rejection Reason:</td>
+                        <td class="text-danger">{{ order.rejection_reason }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

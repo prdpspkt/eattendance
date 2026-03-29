@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+
+{% block title %}Request Leave - E-Attendance{% endblock %}
+
+{% block page-title %}{% if viewing_other %}Create Leave for {{ employee.user.get_full_name }}{% else %}Request Leave{% endif %}{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    {% if viewing_other %}
+    <div class="col-12">
+        <a href="{% url 'my_leaves' %}?employee_id={{ employee.id }}" class="btn btn-outline-secondary mb-3">
+            <i class="bi bi-arrow-left"></i> Back to Leave Requests
+        </a>
+    </div>
+    {% endif %}
+    <div class="col-md-8 {% if viewing_other %}{% else %}offset-md-2{% endif %}">
+        <div class="card shadow-sm">
+            <div class="card-header {% if viewing_other %}bg-warning{% else %}bg-primary{% endif %} text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-calendar-plus"></i>
+                    {% if viewing_other %}Create Leave for {{ employee.user.get_full_name }}{% else %}Submit Leave Request{% endif %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="leave_type" class="form-label">Leave Type <span class="text-danger">*</span></label>
+                        <select class="form-select" name="leave_type" id="leave_type" required>
+                            <option value="">Select leave type...</option>
+                            {% for leave_type in leave_types %}
+                                <option value="{{ leave_type.id }}">
+                                    {{ leave_type.name }}
+                                    {% if leave_type.description %} - {{ leave_type.description }}{% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Choose the type of leave you are requesting</small>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="start_date" class="form-label">Start Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="start_date"
+                                   id="start_date" required>
+                            <small class="text-muted">First day of leave</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end_date" class="form-label">End Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="end_date"
+                                   id="end_date" required>
+                            <small class="text-muted">Last day of leave</small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="reason" class="form-label">Reason <span class="text-danger">*</span></label>
+                        <textarea class="form-control" name="reason"
+                                  id="reason" rows="4"
+                                  required placeholder="Please provide a reason for your leave request..."></textarea>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Note:</strong>
+                        {% if viewing_other %}
+                        You are creating a leave request for {{ employee.user.get_full_name }}. The request will be sent for approval.
+                        {% else %}
+                        Your leave request will be sent to your manager for approval. You will receive a notification once it's reviewed.
+                        {% endif %}
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" class="btn {% if viewing_other %}btn-warning{% else %}btn-primary{% endif %}">
+                            <i class="bi bi-send"></i> {% if viewing_other %}Create Leave{% else %}Submit Request{% endif %}
+                        </button>
+                        {% if viewing_other %}
+                        <a href="{% url 'my_leaves' %}?employee_id={{ employee.id }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                        {% else %}
+                        <a href="{% url 'my_leaves' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <i class="bi bi-lightning"></i> Leave Policy Information
+            </div>
+            <div class="card-body">
+                <h6>Important Points:</h6>
+                <ul>
+                    <li>Submit your leave request at least 3 days in advance for planned leaves</li>
+                    <li>Emergency leaves should be communicated to your manager directly</li>
+                    <li>Your leave balance will be automatically updated after approval</li>
+                    <li>Half-day leaves are not supported in the current system</li>
+                    <li>Make sure to hand over your responsibilities before going on leave</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

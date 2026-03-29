@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+
+{% block title %}Request Travel Order - E-Attendance System{% endblock %}
+
+{% block page-title %}
+    {% if viewing_other %}
+        Request Travel Order for {{ employee.user.get_full_name }}
+    {% else %}
+        Request Travel Order
+    {% endif %}
+{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-airplane"></i>
+                    {% if viewing_other %}
+                        Create Travel Order for {{ employee.user.get_full_name }}
+                    {% else %}
+                        Create Travel Order
+                    {% endif %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="id_travel_type" class="form-label">Travel Type <span class="text-danger">*</span></label>
+                            <select name="travel_type" id="id_travel_type" class="form-select" required>
+                                <option value="">Select Travel Type</option>
+                                <option value="DOMESTIC">Domestic</option>
+                                <option value="INTERNATIONAL">International</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="id_destination" class="form-label">Destination <span class="text-danger">*</span></label>
+                            <input type="text" name="destination" id="id_destination" class="form-control"
+                                   placeholder="e.g., Nairobi, Mombasa" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="id_purpose" class="form-label">Purpose <span class="text-danger">*</span></label>
+                        <textarea name="purpose" id="id_purpose" class="form-control" rows="3"
+                                  placeholder="Describe the purpose of this travel order..." required></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="id_start_date" class="form-label">Start Date & Time <span class="text-danger">*</span></label>
+                            <input type="datetime-local" name="start_date" id="id_start_date" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="id_end_date" class="form-label">End Date & Time <span class="text-danger">*</span></label>
+                            <input type="datetime-local" name="end_date" id="id_end_date" class="form-control" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="id_estimated_cost" class="form-label">Estimated Cost</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" name="estimated_cost" id="id_estimated_cost" class="form-control"
+                                   placeholder="0.00" step="0.01" min="0">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="id_attachment" class="form-label">Attachment (Optional)</label>
+                        <input type="file" name="attachment" id="id_attachment" class="form-control"
+                               accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                        <div class="form-text">Upload supporting documents (PDF, DOC, images)</div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Note:</strong> Travel orders will be reviewed and approved by the administration.
+                        You will receive a notification once your request is processed.
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        {% if viewing_other %}
+                        <a href="{% url 'my_travel_orders' %}?employee_id={{ employee.id }}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                        {% else %}
+                        <a href="{% url 'my_travel_orders' %}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                        {% endif %}
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check"></i> Submit Travel Order
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

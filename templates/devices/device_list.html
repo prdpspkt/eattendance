@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block title %}Device Management - E-Attendance System{% endblock %}
+
+{% block page-title %}Device Management{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white py-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Biometric Devices</h5>
+                    <a href="{% url 'devices:device_create' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Add Device
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if devices %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Device Name</th>
+                                <th>IP Address</th>
+                                <th>Location</th>
+                                <th>Status</th>
+                                <th>Last Sync</th>
+                                <th>Sync Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for device in devices %}
+                            <tr>
+                                <td>
+                                    <strong>{{ device.name }}</strong>
+                                    <br>
+                                    <small class="text-muted">Port: {{ device.port }}</small>
+                                </td>
+                                <td>{{ device.ip_address }}</td>
+                                <td>{{ device.location|default:"Not set" }}</td>
+                                <td>
+                                    {% if device.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if device.last_sync %}
+                                    {{ device.last_sync|date:"d M Y, H:i" }}
+                                    {% else %}
+                                    <span class="text-muted">Never</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if device.last_sync_status %}
+                                    <small class="{% if 'Success' in device.last_sync_status %}text-success{% else %}text-danger{% endif %}">
+                                        {{ device.last_sync_status }}
+                                    </small>
+                                    {% else %}
+                                    <span class="text-muted">Not synced</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{% url 'devices:device_detail' device.id %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-cpu" style="font-size: 4rem; color: #dee2e6;"></i>
+                    <p class="text-muted mt-3">No devices configured yet.</p>
+                    <a href="{% url 'devices:device_create' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Add Your First Device
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

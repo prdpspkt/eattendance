@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if form.instance.pk %}Edit Device{% else %}Add Device{% endif %} - E-Attendance System{% endblock %}
+
+{% block page-title %}{% if form.instance.pk %}Edit Device{% else %}Add New Device{% endif %}{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-cpu"></i>
+                    {% if form.instance.pk %}Edit Device{% else %}Add New Biometric Device{% endif %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="{{ form.name.id_for_label }}" class="form-label">Device Name</label>
+                        <input type="text" class="form-control" name="{{ form.name.name }}"
+                               id="{{ form.name.id_for_label }}"
+                               value="{{ form.name.value|default:'' }}"
+                               required>
+                        {% if form.name.errors %}
+                            <div class="text-danger small mt-1">
+                                {{ form.name.errors }}
+                            </div>
+                        {% endif %}
+                        <small class="text-muted">A descriptive name for this device (e.g., "Main Entrance", "HR Office")</small>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label for="{{ form.ip_address.id_for_label }}" class="form-label">IP Address</label>
+                            <input type="text" class="form-control" name="{{ form.ip_address.name }}"
+                                   id="{{ form.ip_address.id_for_label }}"
+                                   value="{{ form.ip_address.value|default:'' }}"
+                                   placeholder="192.168.1.201"
+                                   required>
+                            {% if form.ip_address.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ form.ip_address.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label for="{{ form.port.id_for_label }}" class="form-label">Port</label>
+                            <input type="number" class="form-control" name="{{ form.port.name }}"
+                                   id="{{ form.port.id_for_label }}"
+                                   value="{{ form.port.value|default:4370 }}"
+                                   required>
+                            {% if form.port.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ form.port.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.location.id_for_label }}" class="form-label">Location</label>
+                        <input type="text" class="form-control" name="{{ form.location.name }}"
+                               id="{{ form.location.id_for_label }}"
+                               value="{{ form.location.value|default:'' }}">
+                        {% if form.location.errors %}
+                            <div class="text-danger small mt-1">
+                                {{ form.location.errors }}
+                            </div>
+                        {% endif %}
+                        <small class="text-muted">Physical location of this device (optional)</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="{{ form.is_active.name }}"
+                                   id="{{ form.is_active.id_for_label }}"
+                                   {% if form.is_active.value %}checked{% endif %}>
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                Active
+                            </label>
+                            <small class="d-block text-muted">Uncheck to temporarily disable this device</small>
+                        </div>
+                        {% if form.is_active.errors %}
+                            <div class="text-danger small mt-1">
+                                {{ form.is_active.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.connection_timeout.id_for_label }}" class="form-label">Connection Timeout (seconds)</label>
+                        <input type="number" class="form-control" name="{{ form.connection_timeout.name }}"
+                               id="{{ form.connection_timeout.id_for_label }}"
+                               value="{{ form.connection_timeout.value|default:5 }}"
+                               min="1" max="60" required>
+                        {% if form.connection_timeout.errors %}
+                            <div class="text-danger small mt-1">
+                                {{ form.connection_timeout.errors }}
+                            </div>
+                        {% endif %}
+                        <small class="text-muted">Connection timeout in seconds (1-60)</small>
+                    </div>
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> {% if form.instance.pk %}Save Changes{% else %}Add Device{% endif %}
+                        </button>
+                        <a href="{% url 'devices:device_list' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> Setup Instructions
+            </div>
+            <div class="card-body">
+                <h6>How to add a ZKTeco biometric device:</h6>
+                <ol>
+                    <li>Connect the device to your network using an Ethernet cable</li>
+                    <li>Find the device's IP address from the device menu: Network → IP Address</li>
+                    <li>Ensure the device is accessible from your network (try pinging the IP)</li>
+                    <li>Enter the device name, IP address, and port above (default port is 4370)</li>
+                    <li>Click "Add Device" to save the configuration</li>
+                    <li>Go to the device detail page and click "Test Connection" to verify connectivity</li>
+                    <li>Click "Sync Users" to import enrolled users from the device</li>
+                </ol>
+                <div class="alert alert-warning">
+                    <strong>Note:</strong> Make sure the device's IP address is static and doesn't change via DHCP.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+{% load core_extras %}
+
+{% block title %}Leave Type Management - E-Attendance System{% endblock %}
+
+{% block page-title %}Leave Type Management{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Leave Types</h5>
+                    <a href="{% url 'leave_type_create' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Add New Leave Type
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if leave_types %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Leave Type</th>
+                                <th>Code</th>
+                                <th>Days/Year</th>
+                                <th>Paid</th>
+                                <th>Approval</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for leave_type in leave_types %}
+                            <tr>
+                                <td>
+                                    <strong>{{ leave_type.name }}</strong>
+                                    {% if leave_type.description %}
+                                    <br><small class="text-muted">{{ leave_type.description }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ leave_type.code }}</span>
+                                </td>
+                                <td>{{ leave_type.days_per_year }} days</td>
+                                <td>
+                                    {% if leave_type.is_paid %}
+                                        <i class="bi bi-check-circle text-success"></i> Yes
+                                    {% else %}
+                                        <i class="bi bi-x-circle text-danger"></i> No
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if leave_type.requires_approval %}
+                                        <i class="bi bi-check-circle text-success"></i> Yes
+                                    {% else %}
+                                        <i class="bi bi-x-circle text-danger"></i> No
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if leave_type.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'leave_type_edit' leave_type.id %}" class="btn btn-outline-primary">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-outline-danger"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#deleteModal{{ leave_type.id }}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-calendar-x" style="font-size: 4rem; color: #dee2e6;"></i>
+                    <p class="text-muted mt-3">No leave types found.</p>
+                    <p class="text-muted small">Create leave types to manage employee leave policies.</p>
+                    <a href="{% url 'leave_type_create' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Create First Leave Type
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modals -->
+{% for leave_type in leave_types %}
+<div class="modal fade" id="deleteModal{{ leave_type.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Delete Leave Type</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the leave type <strong>"{{ leave_type.name }}"</strong>?</p>
+                <p class="text-muted">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    {% if leave_type_stats|get_item:leave_type.id > 0 %}
+                    <strong>Warning:</strong> This leave type is currently assigned to {{ leave_type_stats|get_item:leave_type.id }} employee(s).
+                    {% else %}
+                    This leave type is not currently assigned to any employees.
+                    {% endif %}
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="post" action="{% url 'leave_type_delete' leave_type.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

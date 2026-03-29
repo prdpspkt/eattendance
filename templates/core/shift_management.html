@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+
+{% block title %}Shift Management - E-Attendance System{% endblock %}
+
+{% block page-title %}Shift Management{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Work Shifts</h5>
+                    <a href="{% url 'shift_create' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Add New Shift
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if shifts %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Shift Name</th>
+                                <th>Working Hours</th>
+                                <th>Late Grace</th>
+                                <th>Early Exit</th>
+                                <th>Break Duration</th>
+                                <th>Employees</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for shift in shifts %}
+                            <tr>
+                                <td>
+                                    <strong>{{ shift.name }}</strong>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">
+                                        <i class="bi bi-clock"></i> {{ shift.start_time }} - {{ shift.end_time }}
+                                    </span>
+                                    <br>
+                                    <small class="text-muted">{{ shift.get_working_hours|floatformat:1 }}h work/day</small>
+                                </td>
+                                <td>{{ shift.late_grace_minutes }} min</td>
+                                <td>{{ shift.early_exit_minutes }} min</td>
+                                <td>{{ shift.break_duration_minutes }} min</td>
+                                <td>
+                                    <span class="badge bg-primary">{{ shift_stats.shift.id|default:0 }}</span>
+                                </td>
+                                <td>
+                                    {% if shift.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'shift_edit' shift.id %}" class="btn btn-outline-primary">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-outline-danger"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#deleteModal{{ shift.id }}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-clock-history" style="font-size: 4rem; color: #dee2e6;"></i>
+                    <p class="text-muted mt-3">No shifts found.</p>
+                    <p class="text-muted small">Create work shifts to define employee schedules.</p>
+                    <a href="{% url 'shift_create' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Create First Shift
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modals -->
+{% for shift in shifts %}
+<div class="modal fade" id="deleteModal{{ shift.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Delete Shift</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the shift <strong>"{{ shift.name }}"</strong>?</p>
+                <p class="text-muted">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    {% if shift_stats.shift.id > 0 %}
+                    <strong>Warning:</strong> This shift is currently assigned to {{ shift_stats.shift.id }} employee(s).
+                    {% else %}
+                    This shift is not currently assigned to any employees.
+                    {% endif %}
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="post" action="{% url 'shift_delete' shift.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ device.name }} - E-Attendance System{% endblock %}
+
+{% block page-title %}{{ device.name }}{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-12">
+        <a href="{% url 'devices:device_list' %}" class="btn btn-outline-secondary mb-3">
+            <i class="bi bi-arrow-left"></i> Back to Devices
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> Device Information</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless table-sm">
+                    <tr>
+                        <td class="text-muted" width="40%">Name:</td>
+                        <td><strong>{{ device.name }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">IP Address:</td>
+                        <td>{{ device.ip_address }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Port:</td>
+                        <td>{{ device.port }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Location:</td>
+                        <td>{{ device.location|default:"Not set" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Status:</td>
+                        <td>
+                            {% if device.is_active %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Last Sync:</td>
+                        <td>
+                            {% if device.last_sync %}
+                            {{ device.last_sync|date:"d M Y, H:i" }}
+                            {% else %}
+                            <span class="text-muted">Never</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h6 class="mb-0"><i class="bi bi-gear"></i> Actions</h6>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'devices:test_connection' device.id %}" class="mb-3">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-primary w-100">
+                        <i class="bi bi-wifi"></i> Test Connection
+                    </button>
+                </form>
+
+                <form method="post" action="{% url 'devices:sync_users' device.id %}" class="mb-3">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-success w-100">
+                        <i class="bi bi-person-plus"></i> Sync Users
+                    </button>
+                </form>
+
+                <form method="post" action="{% url 'devices:sync_attendance' device.id %}" class="mb-3">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-info w-100">
+                        <i class="bi bi-calendar-check"></i> Sync Attendance
+                    </button>
+                </form>
+
+                <a href="{% url 'devices:todays_attendance' %}" class="btn btn-outline-warning w-100">
+                    <i class="bi bi-clock-history"></i> Today's Attendance Log
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-people"></i> Enrolled Users</h6>
+                    <span class="badge bg-primary">{{ employee_devices.count }}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if employee_devices %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Device UID</th>
+                                <th>User Name (from Device)</th>
+                                <th>Employee</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ed in employee_devices %}
+                            <tr>
+                                <td><strong>{{ ed.device_uid }}</strong></td>
+                                <td>
+                                    <strong>{{ ed.user_name|default:"Unknown" }}</strong>
+                                </td>
+                                <td>
+                                    {% if ed.employee %}
+                                    {% if ed.employee.user.profile_picture %}
+                                        <img src="{{ ed.employee.user.profile_picture.url }}"
+                                             class="rounded-circle" width="30" height="30">
+                                    {% else %}
+                                        <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
+                                             style="width: 30px; height: 30px; font-size: 12px;">
+                                            {{ ed.employee.user.get_full_name|first|upper }}
+                                        </div>
+                                    {% endif %}
+                                    {{ ed.employee.user.get_full_name }}
+                                    <br>
+                                    <small class="text-muted">{{ ed.employee.employee_id }}</small>
+                                    {% else %}
+                                    <span class="badge bg-warning">Unlinked</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-person-x" style="font-size: 3rem; color: #dee2e6;"></i>
+                    <p class="text-muted mt-3">No users enrolled on this device yet.</p>
+                    <form method="post" action="{% url 'devices:sync_users' device.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-person-plus"></i> Sync Users from Device
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

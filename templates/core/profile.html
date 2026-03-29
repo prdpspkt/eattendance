@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% block title %}My Profile - E-Attendance{% endblock %}
+
+{% block page-title %}My Profile{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card text-center mb-4">
+            <div class="card-body">
+                {% if employee.user.profile_picture %}
+                    <img src="{{ employee.user.profile_picture.url }}"
+                         class="rounded-circle mb-3"
+                         width="150"
+                         height="150"
+                         alt="Profile Picture">
+                {% else %}
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mb-3"
+                         style="width: 150px; height: 150px; font-size: 48px;">
+                        {{ employee.user.get_full_name|first|upper }}
+                    </div>
+                {% endif %}
+                <h4>{{ employee.user.get_full_name }}</h4>
+                <p class="text-muted">{{ employee.user.role }}</p>
+                <p class="mb-1"><strong>Employee ID:</strong> {{ employee.employee_id }}</p>
+                <p class="mb-1"><strong>Department:</strong> {{ employee.department.name|default:'N/A' }}</p>
+                <p class="mb-0"><strong>Status:</strong>
+                    <span class="badge bg-{% if employee.employment_status == 'ACTIVE' %}success{% else %}warning{% endif %}">
+                        {{ employee.get_employment_status_display }}
+                    </span>
+                </p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-gear"></i> Quick Actions
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'change_password' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-key"></i> Change Password
+                    </a>
+                    <a href="{% url 'my_attendance' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-calendar-check"></i> My Attendance
+                    </a>
+                    <a href="{% url 'my_leaves' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-calendar-event"></i> Leave Balance
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-person"></i> Personal Information
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="first_name" class="form-label">First Name</label>
+                            <input type="text" class="form-control" id="first_name"
+                                   value="{{ employee.user.first_name }}" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="last_name" class="form-label">Last Name</label>
+                            <input type="text" class="form-control" id="last_name"
+                                   value="{{ employee.user.last_name }}" readonly>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email" id="email"
+                               value="{{ employee.user.email }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="phone" class="form-label">Phone</label>
+                        <input type="text" class="form-control" name="phone" id="phone"
+                               value="{{ employee.user.phone|default:'' }}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="address" class="form-label">Address</label>
+                        <textarea class="form-control" name="address" id="address" rows="3">{{ employee.address|default:'' }}</textarea>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="city" class="form-label">City</label>
+                            <input type="text" class="form-control" name="city" id="city"
+                                   value="{{ employee.city|default:'' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="postal_code" class="form-label">Postal Code</label>
+                            <input type="text" class="form-control" name="postal_code" id="postal_code"
+                                   value="{{ employee.postal_code|default:'' }}">
+                        </div>
+                    </div>
+
+                    <hr>
+                    <h6 class="mb-3">Emergency Contact</h6>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="emergency_contact_name" class="form-label">Contact Name</label>
+                            <input type="text" class="form-control" name="emergency_contact_name"
+                                   id="emergency_contact_name"
+                                   value="{{ employee.emergency_contact_name|default:'' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="emergency_contact_phone" class="form-label">Contact Phone</label>
+                            <input type="text" class="form-control" name="emergency_contact_phone"
+                                   id="emergency_contact_phone"
+                                   value="{{ employee.emergency_contact_phone|default:'' }}">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="profile_picture" class="form-label">Profile Picture</label>
+                        <input type="file" class="form-control" name="profile_picture" id="profile_picture"
+                               accept="image/*">
+                        <small class="text-muted">Upload a new profile picture (optional)</small>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save Changes
+                        </button>
+                        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> Employment Information
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Employee ID:</strong> {{ employee.employee_id }}</p>
+                        <p class="mb-1"><strong>Join Date:</strong> {{ employee.join_date|date:"d M Y" }}</p>
+                        <p class="mb-1"><strong>Gender:</strong> {{ employee.get_gender_display|default:'N/A' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Department:</strong> {{ employee.department.name|default:'N/A' }}</p>
+                        <p class="mb-1"><strong>Blood Group:</strong> {{ employee.blood_group|default:'N/A' }}</p>
+                        <p class="mb-1"><strong>Device UID:</strong> {{ employee.device_uid|default:'N/A' }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

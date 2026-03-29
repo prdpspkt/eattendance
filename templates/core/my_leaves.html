@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+
+{% block title %}Leave Balance - E-Attendance{% endblock %}
+
+{% block page-title %}My Leave Balance{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0"><i class="bi bi-calendar-check"></i> Leave Balance</h6>
+            </div>
+            <div class="card-body">
+                {% if leave_balances %}
+                <table class="table table-borderless">
+                    <thead>
+                        <tr>
+                            <th>Leave Type</th>
+                            <th class="text-end">Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for balance in leave_balances %}
+                        <tr>
+                            <td>{{ balance.leave_type.name }}</td>
+                            <td class="text-end">
+                                <strong class="{% if balance.remaining_days <= 2 %}text-danger{% elif balance.remaining_days <= 5 %}text-warning{% else %}text-success{% endif %}">
+                                    {{ balance.remaining_days }} days
+                                </strong>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted text-center mb-0">No leave balance information available.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h6 class="mb-0"><i class="bi bi-lightning"></i> Quick Actions</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'request_leave' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-plus-circle"></i> Request Leave
+                    </a>
+                    <a href="{% url 'my_attendance' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-calendar-event"></i> My Attendance
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="bi bi-clock-history"></i> Recent Leave Requests</h6>
+            </div>
+            <div class="card-body">
+                {% if leave_requests %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Leave Type</th>
+                                <th>Duration</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for request in leave_requests %}
+                            <tr>
+                                <td>
+                                    <strong>{{ request.leave_type.name }}</strong>
+                                    <br>
+                                    <small class="text-muted">Applied on {{ request.created_at|date:"d M Y" }}</small>
+                                </td>
+                                <td>
+                                    {{ request.start_date|date:"d M Y" }}
+                                    {% if request.end_date != request.start_date %}
+                                        to {{ request.end_date|date:"d M Y" }}
+                                    {% endif %}
+                                    <br>
+                                    <small class="text-muted">{{ request.total_days }} day{{ request.total_days|pluralize }}</small>
+                                </td>
+                                <td>
+                                    <small>{{ request.reason|truncatewords:10 }}</small>
+                                </td>
+                                <td>
+                                    {% if request.status == 'PENDING' %}
+                                        <span class="badge bg-warning">Pending</span>
+                                    {% elif request.status == 'APPROVED' %}
+                                        <span class="badge bg-success">Approved</span>
+                                    {% elif request.status == 'REJECTED' %}
+                                        <span class="badge bg-danger">Rejected</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" type="button"
+                                            data-bs-toggle="modal" data-bs-target="#leaveModal{{ request.id }}">
+                                        <i class="bi bi-eye"></i> View
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-calendar-x" style="font-size: 3rem; color: #dee2e6;"></i>
+                    <p class="text-muted mt-3 mb-0">No leave requests found.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% for request in leave_requests %}
+<div class="modal fade" id="leaveModal{{ request.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Leave Request Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <td class="text-muted" width="40%">Leave Type:</td>
+                        <td><strong>{{ request.leave_type.name }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Duration:</td>
+                        <td>
+                            {{ request.start_date|date:"d M Y" }}
+                            {% if request.end_date != request.start_date %}
+                                to {{ request.end_date|date:"d M Y" }}
+                            {% endif %}
+                            ({{ request.total_days }} day{{ request.total_days|pluralize }})
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Status:</td>
+                        <td>
+                            {% if request.status == 'PENDING' %}
+                                <span class="badge bg-warning">Pending</span>
+                            {% elif request.status == 'APPROVED' %}
+                                <span class="badge bg-success">Approved</span>
+                            {% elif request.status == 'REJECTED' %}
+                                <span class="badge bg-danger">Rejected</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Applied On:</td>
+                        <td>{{ request.created_at|date:"d M Y, H:i" }}</td>
+                    </tr>
+                    {% if request.approved_at %}
+                    <tr>
+                        <td class="text-muted">Approved On:</td>
+                        <td>{{ request.approved_at|date:"d M Y, H:i" }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if request.approved_by %}
+                    <tr>
+                        <td class="text-muted">Approved By:</td>
+                        <td>{{ request.approved_by.get_full_name }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td class="text-muted">Reason:</td>
+                        <td>{{ request.reason }}</td>
+                    </tr>
+                    {% if request.rejection_reason %}
+                    <tr>
+                        <td class="text-muted">Rejection Reason:</td>
+                        <td class="text-danger">{{ request.rejection_reason }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

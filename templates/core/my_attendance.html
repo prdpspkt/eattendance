@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+
+{% block title %}My Attendance - E-Attendance{% endblock %}
+
+{% block page-title %}My Attendance Records{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Attendance History</h5>
+                    <div class="d-flex gap-2">
+                        <form method="get" class="d-flex gap-2">
+                            <input type="date" name="start_date" class="form-control form-control-sm"
+                                   value="{{ request.GET.start_date|default:'' }}"
+                                   placeholder="Start Date">
+                            <input type="date" name="end_date" class="form-control form-control-sm"
+                                   value="{{ request.GET.end_date|default:'' }}"
+                                   placeholder="End Date">
+                            <button type="submit" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-filter"></i> Filter
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if attendances %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <a href="?order_by=date&order_direction={% if order_by == 'date' and order_direction == 'desc' %}asc{% else %}desc{% endif %}{% if selected_month %}&month={{ selected_month }}{% endif %}{% if selected_year %}&year={{ selected_year }}{% endif %}"
+                                       class="text-decoration-none text-dark">
+                                        Date
+                                        {% if order_by == 'date' %}
+                                            <i class="bi bi-caret-{% if order_direction == 'asc' %}up{% else %}down{% endif %}"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="?order_by=check_in&order_direction={% if order_by == 'check_in' and order_direction == 'asc' %}desc{% else %}asc{% endif %}{% if selected_month %}&month={{ selected_month }}{% endif %}{% if selected_year %}&year={{ selected_year }}{% endif %}"
+                                       class="text-decoration-none text-dark">
+                                        Check In
+                                        {% if order_by == 'check_in' %}
+                                            <i class="bi bi-caret-{% if order_direction == 'asc' %}up{% else %}down{% endif %}"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="?order_by=check_out&order_direction={% if order_by == 'check_out' and order_direction == 'asc' %}desc{% else %}asc{% endif %}{% if selected_month %}&month={{ selected_month }}{% endif %}{% if selected_year %}&year={{ selected_year }}{% endif %}"
+                                       class="text-decoration-none text-dark">
+                                        Check Out
+                                        {% if order_by == 'check_out' %}
+                                            <i class="bi bi-caret-{% if order_direction == 'asc' %}up{% else %}down{% endif %}"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="?order_by=status&order_direction={% if order_by == 'status' and order_direction == 'asc' %}desc{% else %}asc{% endif %}{% if selected_month %}&month={{ selected_month }}{% endif %}{% if selected_year %}&year={{ selected_year }}{% endif %}"
+                                       class="text-decoration-none text-dark">
+                                        Status
+                                        {% if order_by == 'status' %}
+                                            <i class="bi bi-caret-{% if order_direction == 'asc' %}up{% else %}down{% endif %}"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="?order_by=working_hours&order_direction={% if order_by == 'working_hours' and order_direction == 'asc' %}desc{% else %}asc{% endif %}{% if selected_month %}&month={{ selected_month }}{% endif %}{% if selected_year %}&year={{ selected_year }}{% endif %}"
+                                       class="text-decoration-none text-dark">
+                                        Work Hours
+                                        {% if order_by == 'working_hours' %}
+                                            <i class="bi bi-caret-{% if order_direction == 'asc' %}up{% else %}down{% endif %}"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="?order_by=overtime_hours&order_direction={% if order_by == 'overtime_hours' and order_direction == 'asc' %}desc{% else %}asc{% endif %}{% if selected_month %}&month={{ selected_month }}{% endif %}{% if selected_year %}&year={{ selected_year }}{% endif %}"
+                                       class="text-decoration-none text-dark">
+                                        Overtime
+                                        {% if order_by == 'overtime_hours' %}
+                                            <i class="bi bi-caret-{% if order_direction == 'asc' %}up{% else %}down{% endif %}"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for attendance in attendances %}
+                            <tr>
+                                <td>
+                                    <strong>{{ attendance.date|date:"d M Y" }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ attendance.date|date:"l" }}</small>
+                                </td>
+                                <td>
+                                    {% if attendance.check_in %}
+                                        <span class="text-success">
+                                            <i class="bi bi-arrow-right-circle"></i>
+                                            {{ attendance.check_in|time:"H:i" }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if attendance.check_out %}
+                                        <span class="text-danger">
+                                            <i class="bi bi-arrow-left-circle"></i>
+                                            {{ attendance.check_out|time:"H:i" }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if attendance.status == 'PRESENT' %}
+                                        <span class="badge bg-success">Present</span>
+                                    {% elif attendance.status == 'LATE' %}
+                                        <span class="badge bg-warning">Late</span>
+                                    {% elif attendance.status == 'ABSENT' %}
+                                        <span class="badge bg-danger">Absent</span>
+                                    {% elif attendance.status == 'HALF_DAY' %}
+                                        <span class="badge bg-info">Half Day</span>
+                                    {% elif attendance.status == 'ON_LEAVE' %}
+                                        <span class="badge bg-primary">On Leave</span>
+                                    {% elif attendance.status == 'HOLIDAY' %}
+                                        <span class="badge bg-secondary">Holiday</span>
+                                    {% elif attendance.status == 'WEEKEND' %}
+                                        <span class="badge bg-dark">Weekend</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ attendance.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if attendance.working_hours %}
+                                        {{ attendance.working_hours }} hrs
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if attendance.overtime_hours %}
+                                        <span class="text-primary">+{{ attendance.overtime_hours }} hrs</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-calendar-x" style="font-size: 4rem; color: #dee2e6;"></i>
+                    <p class="text-muted mt-3">No attendance records found.</p>
+                    <p class="text-muted small">
+                        Your attendance will be automatically recorded when you check in/check out using biometric devices.
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
