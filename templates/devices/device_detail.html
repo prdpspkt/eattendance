@@ -27,7 +27,7 @@
                     </tr>
                     <tr>
                         <td class="text-muted">IP Address:</td>
-                        <td>{{ device.ip_address }}</td>
+                        <td>{{ device.ip_address|default:"&mdash; (push mode)" }}</td>
                     </tr>
                     <tr>
                         <td class="text-muted">Port:</td>

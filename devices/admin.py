@@ -35,7 +35,8 @@ class DeviceCommandAdmin(admin.ModelAdmin):
 class DeviceAdmin(admin.ModelAdmin):
     list_display = ['name', 'ip_address', 'serial_number', 'connection_mode', 'location', 'is_active', 'last_sync', 'last_sync_status', 'sync_buttons']
     list_filter = ['is_active', 'push_enabled', 'created_at']
-    search_fields = ['name', 'ip_address', 'location', 'serial_number']
+    search_fields = ['name', 'ip_address', 'location', 'serial_number',
+                     'device_id', 'mac_address']
     ordering = ['name']
 
     fieldsets = (
@@ -46,12 +47,15 @@ class DeviceAdmin(admin.ModelAdmin):
             'fields': ('is_active', 'connection_timeout')
         }),
         ('Push Protocol (ADMS/WDMS)', {
-            'fields': ('serial_number', 'push_enabled', 'last_seen', 'firmware_version',
+            'fields': ('serial_number', 'device_id', 'mac_address', 'push_enabled',
+                       'last_seen', 'last_ip', 'firmware_version',
                        'device_info', 'attlog_stamp', 'operlog_stamp'),
             'description': (
                 'Point the terminal at this server under Comm. &rarr; Ethernet &rarr; '
-                'Cloud Server / ADMS. The serial number is filled in automatically the '
-                'first time the device connects.'
+                'Cloud Server / ADMS. Only the serial number identifies a device when '
+                'it connects - it is the one value every request carries. Device ID and '
+                'MAC address are reported by the terminal afterwards and are there to '
+                'help you match this record to a physical unit.'
             ),
         }),
         ('Sync Information', {
@@ -60,7 +64,10 @@ class DeviceAdmin(admin.ModelAdmin):
         }),
     )
 
-    readonly_fields = ['last_sync', 'last_sync_status', 'last_seen', 'push_enabled',
+    # Everything the device reports about itself is read-only: typing a value
+    # here would just be overwritten on the terminal's next upload.
+    readonly_fields = ['last_sync', 'last_sync_status', 'last_seen', 'last_ip',
+                       'push_enabled', 'device_id', 'mac_address',
                        'firmware_version', 'device_info', 'attlog_stamp', 'operlog_stamp']
 
     def connection_mode(self, obj):
@@ -124,10 +131,15 @@ class DeviceAdmin(admin.ModelAdmin):
         return redirect('/admin/devices/device/')
 
     actions = ['test_connection', 'sync_users_devices', 'sync_attendance_devices',
-               'queue_check', 'queue_info', 'queue_reboot']
+               'queue_check', 'queue_info', 'queue_reboot',
+               'queue_user_query', 'request_all_attendance']
 
-    def _queue(self, request, queryset, command, label):
-        """Queue an ADMS command on each selected push-enabled device."""
+    def _for_push_devices(self, request, queryset, action, label):
+        """Run ``action(device)`` on each selected device that is in push mode.
+
+        A device still on the pull SDK has no command queue to put anything in,
+        so it is reported rather than silently skipped.
+        """
         from django.contrib import messages
         queued = 0
         for device in queryset:
@@ -137,14 +149,23 @@ class DeviceAdmin(admin.ModelAdmin):
                     f"{device.name}: not using the push protocol, command not queued."
                 )
                 continue
-            device.queue_command(command, created_by=request.user)
+            action(device)
             queued += 1
         if queued:
             messages.success(
                 request,
                 f"Queued '{label}' on {queued} device(s). "
-                "They will pick it up on their next poll."
+                "They will pick it up on their next poll, usually within seconds."
             )
+        return queued
+
+    def _queue(self, request, queryset, command, label):
+        """Queue a plain ADMS command on each selected push-enabled device."""
+        return self._for_push_devices(
+            request, queryset,
+            lambda device: device.queue_command(command, created_by=request.user),
+            label,
+        )
 
     def queue_check(self, request, queryset):
         """Ask the device to re-send anything the server has not acknowledged."""
@@ -158,6 +179,41 @@ class DeviceAdmin(admin.ModelAdmin):
     def queue_reboot(self, request, queryset):
         self._queue(request, queryset, 'REBOOT', 'REBOOT')
     queue_reboot.short_description = "Push: queue REBOOT"
+
+    def queue_user_query(self, request, queryset):
+        """Pull the device's user table.
+
+        This is the push-mode equivalent of "Sync Users": the server cannot
+        read the device, so it asks and the device uploads. Users it does not
+        recognise land in Unlinked Enrollments to be attached to an employee.
+        """
+        self._for_push_devices(
+            request, queryset,
+            lambda device: device.queue_user_query(created_by=request.user),
+            'DATA QUERY USERINFO',
+        )
+    queue_user_query.short_description = "Push: pull employee/user list from device"
+
+    def request_all_attendance(self, request, queryset):
+        """Re-request the device's whole attendance log by clearing the stamp."""
+        from django.contrib import messages
+
+        queued = self._for_push_devices(
+            request, queryset,
+            lambda device: device.request_all_attendance(created_by=request.user),
+            'CHECK (attendance stamp reset)',
+        )
+        if queued:
+            # Say this plainly: the stamp is only consulted at a handshake, so
+            # the replay may not begin until the device next reconnects.
+            messages.info(
+                request,
+                "The resume point was cleared, so each device will re-send its full "
+                "attendance log. Devices read that point when they handshake, which "
+                "may not be immediate - queue a REBOOT as well to force one. "
+                "Re-sent punches are de-duplicated, so nothing will be recorded twice."
+            )
+    request_all_attendance.short_description = "Push: re-request ALL attendance (reset resume point)"
 
     def test_connection(self, request, queryset):
         """Admin action to test connection"""

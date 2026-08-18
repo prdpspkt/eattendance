@@ -25,9 +25,32 @@ class EmployeeDevice(models.Model):
 
 
 class Device(models.Model):
-    """ZKTeco biometric device model"""
+    """A ZKTeco biometric terminal, reached by either transport.
+
+    How a device is identified depends on how it talks to us:
+
+    * **Push (ADMS/WDMS)** - the device connects to us, and its *serial
+      number* is the identity. Its IP address is whatever NAT and DHCP happen
+      to give it that day, which is why ``ip_address`` is optional: for a
+      terminal at a remote branch it is neither knowable in advance nor useful.
+    * **Pull (ZK SDK)** - we connect to the device, so an ``ip_address`` is
+      required and is the identity.
+
+    A device must therefore carry at least one of the two, which the database
+    constraint at the bottom of this class enforces.
+    """
     name = models.CharField(max_length=100, help_text="Device name/label")
-    ip_address = models.CharField(max_length=50, unique=True, help_text="Device IP address")
+    ip_address = models.CharField(
+        max_length=50, unique=True, blank=True, null=True,
+        help_text=(
+            "Address to connect to for pull-mode syncing. Leave empty for "
+            "push-mode devices, which reach us and are identified by serial number."
+        ),
+    )
+    last_ip = models.CharField(
+        max_length=50, blank=True, null=True,
+        help_text="Source address of the device's most recent push. Informational.",
+    )
     port = models.IntegerField(default=4370, help_text="Device port (default: 4370)")
     password = models.IntegerField(default=0, blank=True, null=True, help_text="Device password (default: 0)")
     location = models.CharField(max_length=100, blank=True, null=True, help_text="Physical location of device")
@@ -37,9 +60,35 @@ class Device(models.Model):
     connection_timeout = models.IntegerField(default=5, help_text="Connection timeout in seconds")
 
     # --- ADMS / WDMS push protocol -------------------------------------
+    # Three identifiers, and they are not interchangeable:
+    #
+    #   serial_number  The only one present at request time - every ADMS call
+    #                  carries ?SN=..., so this is what a device is matched on.
+    #   device_id      The terminal's own "Device ID" / machine number (often
+    #                  1). Set by whoever configured the unit; NOT unique across
+    #                  devices, so it identifies a terminal only within a site.
+    #   mac_address    Burned into the hardware. Unique in practice and useful
+    #                  for matching a database row to a physical box, but the
+    #                  device only tells us on an OPTIONS/INFO upload, which
+    #                  happens after the handshake - so it can confirm an
+    #                  identity, never establish one.
     serial_number = models.CharField(
         max_length=64, unique=True, blank=True, null=True,
         help_text="Device serial number (SN). Identifies the device when it pushes data to us.",
+    )
+    device_id = models.CharField(
+        max_length=32, blank=True, null=True,
+        help_text=(
+            "The terminal's own Device ID / machine number. Reported by the device; "
+            "not unique between devices, so it is a label rather than an identity."
+        ),
+    )
+    mac_address = models.CharField(
+        max_length=32, blank=True, null=True,
+        help_text=(
+            "Hardware MAC address, reported by the device after it connects. "
+            "Useful for matching this record to a physical unit."
+        ),
     )
     push_enabled = models.BooleanField(
         default=False,
@@ -69,9 +118,25 @@ class Device(models.Model):
         verbose_name = 'Device'
         verbose_name_plural = 'Devices'
         ordering = ['name']
+        constraints = [
+            # A device we can neither connect to nor recognise when it connects
+            # to us is not a device, it is a row. One of the two identities has
+            # to be present.
+            models.CheckConstraint(
+                condition=models.Q(ip_address__isnull=False) | models.Q(serial_number__isnull=False),
+                name='device_has_ip_or_serial',
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.name} ({self.ip_address})"
+        return f"{self.name} ({self.address_label})"
+
+    @property
+    def address_label(self):
+        """How to refer to this device: its serial in push mode, its IP in pull."""
+        if self.push_enabled or not self.ip_address:
+            return self.serial_number or 'unregistered'
+        return self.ip_address
 
     @property
     def is_online(self):
@@ -88,6 +153,62 @@ class Device(models.Model):
         return DeviceCommand.objects.create(
             device=self, command=command, created_by=created_by
         )
+
+    # ------------------------------------------------------------------
+    # Pulling data from a device that is in push mode
+    # ------------------------------------------------------------------
+    # In push mode the server never connects to the device, so "pull" means
+    # "ask, then wait for the upload". Devices poll every ~10 seconds
+    # (Delay=10 in the handshake), so these take effect within seconds.
+    def queue_user_query(self, pin=None, created_by=None):
+        """Ask the device to upload its user table (one user, or all of them).
+
+        Records arrive as an OPERLOG upload. Unknown PINs become *unlinked*
+        enrolments, listed under Unlinked Enrollments for an admin to attach to
+        an employee - nothing is dropped.
+        """
+        from . import adms_commands
+
+        return self.queue_command(
+            adms_commands.query_userinfo(pin), created_by=created_by
+        )
+
+    def queue_attlog_query(self, start, end, created_by=None):
+        """Ask the device to re-upload attendance between two dates."""
+        from . import adms_commands
+
+        return self.queue_command(
+            adms_commands.query_attlog(start, end), created_by=created_by
+        )
+
+    def request_all_attendance(self, created_by=None):
+        """Ask the device to re-send its entire attendance log.
+
+        The protocol resumes from a stamp: the handshake tells the device
+        ``ATTLOGStamp=<what we have>`` and it sends only what is newer.
+        Clearing the stamp therefore says "we have nothing", and the device
+        replays everything it still holds. Re-sent punches are harmless -
+        ``devices.ingest`` de-duplicates on (employee, device, timestamp), so a
+        full replay simply counts as duplicates.
+
+        Two caveats worth knowing before you rely on this:
+
+        1. **The stamp is only read at a handshake**, not at every poll. A
+           device that is already connected may not re-handshake for a long
+           time, so a CHECK is queued alongside to prompt an upload of anything
+           outstanding. To force the matter, queue a REBOOT as well: the device
+           handshakes on start-up.
+        2. **The device record is cached** for ADMS_DEVICE_CACHE_SECONDS. The
+           worker handling this request drops its copy immediately (see
+           devices/signals.py), but with the default local-memory cache other
+           workers can serve the old stamp for up to that long. Set REDIS_URL
+           to make the invalidation immediate everywhere.
+        """
+        from . import adms_commands
+
+        self.attlog_stamp = '0'
+        self.save(update_fields=['attlog_stamp'])
+        return self.queue_command(adms_commands.CHECK, created_by=created_by)
 
     def test_connection(self):
         """Test connection to the device using pyzk"""

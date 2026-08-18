@@ -43,7 +43,7 @@
             <div class="card-body">
                 <dl class="row small mb-3 g-2">
                     <dt class="col-5 text-muted fw-normal">Address</dt>
-                    <dd class="col-7 mono mb-0">{{ device.ip_address }}:{{ device.port }}</dd>
+                    <dd class="col-7 mono mb-0">{% if device.ip_address %}{{ device.ip_address }}:{{ device.port }}{% else %}SN {{ device.serial_number|default:"&mdash;" }}{% endif %}</dd>
 
                     <dt class="col-5 text-muted fw-normal">Serial</dt>
                     <dd class="col-7 mono mb-0">{{ device.serial_number|default:"—" }}</dd>

@@ -1,147 +1,221 @@
 {% extends 'base.html' %}
 
-{% block title %}{% if form.instance.pk %}Edit Device{% else %}Add Device{% endif %} - E-Attendance System{% endblock %}
+{% block title %}{% if form.instance.pk %}Edit Device{% else %}Add Device{% endif %} - E-Attendance{% endblock %}
 
-{% block page-title %}{% if form.instance.pk %}Edit Device{% else %}Add New Device{% endif %}{% endblock %}
+{% block page-title %}{% if form.instance.pk %}Edit Device{% else %}Add Device{% endif %}{% endblock %}
 
 {% block auth_content %}
-<div class="row">
-    <div class="col-md-8 offset-md-2">
-        <div class="card shadow-sm">
-            <div class="card-header bg-primary text-white">
-                <h6 class="mb-0">
-                    <i class="bi bi-cpu"></i>
-                    {% if form.instance.pk %}Edit Device{% else %}Add New Biometric Device{% endif %}
-                </h6>
-            </div>
-            <div class="card-body">
-                <form method="post" enctype="multipart/form-data">
-                    {% csrf_token %}
+<div class="page-header">
+    <div>
+        <h2 class="page-header__title">
+            {% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}Register a device{% endif %}
+        </h2>
+        <p class="page-header__subtitle">
+            Choose how the terminal talks to this server; the rest of the form follows from that.
+        </p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'devices:device_list' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to devices
+        </a>
+    </div>
+</div>
 
-                    <div class="mb-3">
-                        <label for="{{ form.name.id_for_label }}" class="form-label">Device Name</label>
-                        <input type="text" class="form-control" name="{{ form.name.name }}"
-                               id="{{ form.name.id_for_label }}"
-                               value="{{ form.name.value|default:'' }}"
-                               required>
-                        {% if form.name.errors %}
-                            <div class="text-danger small mt-1">
-                                {{ form.name.errors }}
+<form method="post" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger" role="alert">
+            <i class="bi bi-exclamation-triangle-fill alert__icon" aria-hidden="true"></i>
+            <div>{{ form.non_field_errors }}</div>
+        </div>
+    {% endif %}
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-broadcast-pin" aria-hidden="true"></i>
+                    <span class="card-title">Connection</span>
+                </div>
+                <div class="card-body">
+                    <fieldset>
+                        <legend class="form-label">{{ form.mode.label }}</legend>
+                        {% for choice in form.mode %}
+                            <div class="form-check mb-2">
+                                {{ choice.tag }}
+                                <label class="form-check-label" for="{{ choice.id_for_label }}">
+                                    {{ choice.choice_label }}
+                                </label>
                             </div>
-                        {% endif %}
-                        <small class="text-muted">A descriptive name for this device (e.g., "Main Entrance", "HR Office")</small>
+                        {% endfor %}
+                        <p class="form-text mb-0">{{ form.mode.help_text }}</p>
+                        {% if form.mode.errors %}<div class="text-danger small mt-1">{{ form.mode.errors }}</div>{% endif %}
+                    </fieldset>
+
+                    <hr class="my-4">
+
+                    {# Push mode: the serial number is the identity. #}
+                    <div class="mb-3" data-mode-panel="PUSH">
+                        <label for="{{ form.serial_number.id_for_label }}" class="form-label">
+                            {{ form.serial_number.label }}
+                        </label>
+                        {{ form.serial_number }}
+                        <p class="form-text mb-0">{{ form.serial_number.help_text|safe }}</p>
+                        {% if form.serial_number.errors %}<div class="text-danger small mt-1">{{ form.serial_number.errors }}</div>{% endif %}
                     </div>
 
-                    <div class="row mb-3">
-                        <div class="col-md-8">
-                            <label for="{{ form.ip_address.id_for_label }}" class="form-label">IP Address</label>
-                            <input type="text" class="form-control" name="{{ form.ip_address.name }}"
-                                   id="{{ form.ip_address.id_for_label }}"
-                                   value="{{ form.ip_address.value|default:'' }}"
-                                   placeholder="192.168.1.201"
-                                   required>
-                            {% if form.ip_address.errors %}
-                                <div class="text-danger small mt-1">
-                                    {{ form.ip_address.errors }}
-                                </div>
-                            {% endif %}
+                    {# Pull mode: the address we dial. #}
+                    <div data-mode-panel="PULL">
+                        <div class="row g-3 mb-3">
+                            <div class="col-sm-7">
+                                <label for="{{ form.ip_address.id_for_label }}" class="form-label">{{ form.ip_address.label }}</label>
+                                {{ form.ip_address }}
+                                {% if form.ip_address.errors %}<div class="text-danger small mt-1">{{ form.ip_address.errors }}</div>{% endif %}
+                            </div>
+                            <div class="col-sm-5">
+                                <label for="{{ form.port.id_for_label }}" class="form-label">Port</label>
+                                {{ form.port }}
+                            </div>
                         </div>
-                        <div class="col-md-4">
-                            <label for="{{ form.port.id_for_label }}" class="form-label">Port</label>
-                            <input type="number" class="form-control" name="{{ form.port.name }}"
-                                   id="{{ form.port.id_for_label }}"
-                                   value="{{ form.port.value|default:4370 }}"
-                                   required>
-                            {% if form.port.errors %}
-                                <div class="text-danger small mt-1">
-                                    {{ form.port.errors }}
-                                </div>
-                            {% endif %}
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label for="{{ form.password.id_for_label }}" class="form-label">Device password</label>
+                                {{ form.password }}
+                                <p class="form-text mb-0">0 unless the terminal was given a comm key.</p>
+                            </div>
+                            <div class="col-sm-6">
+                                <label for="{{ form.connection_timeout.id_for_label }}" class="form-label">Timeout (seconds)</label>
+                                {{ form.connection_timeout }}
+                            </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-tag" aria-hidden="true"></i>
+                    <span class="card-title">Identification</span>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="{{ form.name.id_for_label }}" class="form-label">Device name</label>
+                        {{ form.name }}
+                        <p class="form-text mb-0">How it appears in lists and reports, e.g. "Main Entrance".</p>
+                        {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors }}</div>{% endif %}
                     </div>
 
                     <div class="mb-3">
                         <label for="{{ form.location.id_for_label }}" class="form-label">Location</label>
-                        <input type="text" class="form-control" name="{{ form.location.name }}"
-                               id="{{ form.location.id_for_label }}"
-                               value="{{ form.location.value|default:'' }}">
-                        {% if form.location.errors %}
-                            <div class="text-danger small mt-1">
-                                {{ form.location.errors }}
-                            </div>
-                        {% endif %}
-                        <small class="text-muted">Physical location of this device (optional)</small>
+                        {{ form.location }}
+                        {% if form.location.errors %}<div class="text-danger small mt-1">{{ form.location.errors }}</div>{% endif %}
                     </div>
 
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" name="{{ form.is_active.name }}"
-                                   id="{{ form.is_active.id_for_label }}"
-                                   {% if form.is_active.value %}checked{% endif %}>
-                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
-                                Active
-                            </label>
-                            <small class="d-block text-muted">Uncheck to temporarily disable this device</small>
-                        </div>
-                        {% if form.is_active.errors %}
-                            <div class="text-danger small mt-1">
-                                {{ form.is_active.errors }}
-                            </div>
-                        {% endif %}
+                    <div class="form-check">
+                        {{ form.is_active }}
+                        <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Active</label>
+                        <p class="form-text mb-0">{{ form.is_active.help_text }}</p>
                     </div>
 
-                    <div class="mb-3">
-                        <label for="{{ form.connection_timeout.id_for_label }}" class="form-label">Connection Timeout (seconds)</label>
-                        <input type="number" class="form-control" name="{{ form.connection_timeout.name }}"
-                               id="{{ form.connection_timeout.id_for_label }}"
-                               value="{{ form.connection_timeout.value|default:5 }}"
-                               min="1" max="60" required>
-                        {% if form.connection_timeout.errors %}
-                            <div class="text-danger small mt-1">
-                                {{ form.connection_timeout.errors }}
-                            </div>
-                        {% endif %}
-                        <small class="text-muted">Connection timeout in seconds (1-60)</small>
-                    </div>
-
-                    {% if form.non_field_errors %}
-                        <div class="alert alert-danger">
-                            {{ form.non_field_errors }}
-                        </div>
+                    {% if form.instance.pk and form.instance.push_enabled %}
+                    <hr class="my-4">
+                    <dl class="row mb-0 small">
+                        <dt class="col-5 text-muted fw-normal">Reported device ID</dt>
+                        <dd class="col-7 mono mb-2">{{ form.instance.device_id|default:"&mdash;" }}</dd>
+                        <dt class="col-5 text-muted fw-normal">MAC address</dt>
+                        <dd class="col-7 mono mb-2">{{ form.instance.mac_address|default:"&mdash;" }}</dd>
+                        <dt class="col-5 text-muted fw-normal">Last seen from</dt>
+                        <dd class="col-7 mono mb-0">{{ form.instance.last_ip|default:"&mdash;" }}</dd>
+                    </dl>
+                    <p class="form-text mb-0 mt-2">
+                        Reported by the terminal itself, so these cannot be edited here.
+                    </p>
                     {% endif %}
-
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-save"></i> {% if form.instance.pk %}Save Changes{% else %}Add Device{% endif %}
-                        </button>
-                        <a href="{% url 'devices:device_list' %}" class="btn btn-outline-secondary">
-                            <i class="bi bi-x-circle"></i> Cancel
-                        </a>
-                    </div>
-                </form>
+                </div>
             </div>
         </div>
 
-        <div class="card mt-4">
-            <div class="card-header">
-                <i class="bi bi-info-circle"></i> Setup Instructions
+        <div class="col-lg-5">
+            <div class="card" data-mode-panel="PUSH">
+                <div class="card-header">
+                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                    <span class="card-title">Setting up a push device</span>
+                </div>
+                <div class="card-body">
+                    <ol class="small ps-3 mb-3">
+                        <li class="mb-2">On the terminal: <strong>Menu &rarr; Comm. &rarr; Ethernet &rarr;
+                            Cloud Server / ADMS</strong> (some firmware calls this <em>Server Setting</em>).</li>
+                        <li class="mb-2">Server address: this site's hostname. Port: <strong>80</strong>.</li>
+                        <li class="mb-2">Leave <strong>Enable Proxy Server</strong> off, and HTTPS off unless the
+                            firmware handles TLS properly.</li>
+                        <li class="mb-2">Save and reboot the terminal.</li>
+                        <li>It calls home within seconds and appears here. Tick <strong>Active</strong> to accept
+                            its data.</li>
+                    </ol>
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-lightbulb alert__icon" aria-hidden="true"></i>
+                        <div class="small">
+                            Registering here is optional. If you skip it, the terminal adds itself
+                            on first contact as <em>Unregistered device &lt;SN&gt;</em> and waits for you
+                            to activate it &mdash; which is often easier than reading the serial off
+                            the unit.
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <h6>How to add a ZKTeco biometric device:</h6>
-                <ol>
-                    <li>Connect the device to your network using an Ethernet cable</li>
-                    <li>Find the device's IP address from the device menu: Network → IP Address</li>
-                    <li>Ensure the device is accessible from your network (try pinging the IP)</li>
-                    <li>Enter the device name, IP address, and port above (default port is 4370)</li>
-                    <li>Click "Add Device" to save the configuration</li>
-                    <li>Go to the device detail page and click "Test Connection" to verify connectivity</li>
-                    <li>Click "Sync Users" to import enrolled users from the device</li>
-                </ol>
-                <div class="alert alert-warning">
-                    <strong>Note:</strong> Make sure the device's IP address is static and doesn't change via DHCP.
+
+            <div class="card" data-mode-panel="PULL">
+                <div class="card-header">
+                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                    <span class="card-title">Setting up a pull device</span>
+                </div>
+                <div class="card-body">
+                    <ol class="small ps-3 mb-3">
+                        <li class="mb-2">Connect the terminal to the network and note its address from
+                            <strong>Menu &rarr; Comm. &rarr; Ethernet</strong>.</li>
+                        <li class="mb-2">Confirm the server can reach it &mdash; the port is 4370 by default.</li>
+                        <li class="mb-2">Save, then use <strong>Test Connection</strong> on the device page.</li>
+                        <li>Use <strong>Sync Users</strong> to import the enrolled users.</li>
+                    </ol>
+                    <div class="alert alert-warning mb-0">
+                        <i class="bi bi-exclamation-triangle alert__icon" aria-hidden="true"></i>
+                        <div class="small">
+                            Pull mode needs the server to open a connection to the terminal, so it does not
+                            work across NAT or from a remote branch without a VPN or port forwarding.
+                            Prefer push mode for anything off the local network.
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
+
+    <div class="d-flex gap-2 justify-content-end mt-4">
+        <a href="{% url 'devices:device_list' %}" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save" aria-hidden="true"></i>
+            {% if form.instance.pk %}Save changes{% else %}Register device{% endif %}
+        </button>
+    </div>
+</form>
+
+<script>
+    // Show only the fields the selected transport actually uses. Progressive
+    // enhancement: without JS every panel is visible and the form still
+    // validates correctly server-side, which is where the rule really lives.
+    (function () {
+        const radios = document.querySelectorAll('input[name="mode"]');
+        const panels = document.querySelectorAll('[data-mode-panel]');
+        function sync() {
+            const selected = document.querySelector('input[name="mode"]:checked');
+            if (!selected) return;
+            panels.forEach(function (panel) {
+                panel.hidden = panel.dataset.modePanel !== selected.value;
+            });
+        }
+        radios.forEach(function (radio) { radio.addEventListener('change', sync); });
+        sync();
+    })();
+</script>
 {% endblock %}

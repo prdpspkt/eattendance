@@ -74,7 +74,7 @@ def _last_seen_cache_key(device_id):
     return f'adms:seen:{device_id}'
 
 
-def _touch_last_seen(device, extra_updates=()):
+def _touch_last_seen(device, extra_updates=(), ip=None):
     """Record that the device just contacted us, without writing every time.
 
     Terminals poll /iclock/getrequest every few seconds. Persisting last_seen
@@ -95,6 +95,13 @@ def _touch_last_seen(device, extra_updates=()):
     now = timezone.now()
     device.last_seen = now
     updates = ['last_seen', *extra_updates]
+
+    # Record where the device reached us from. Informational only - it is not
+    # an identity in push mode - so it rides along with whatever write the
+    # throttle below allows rather than forcing one of its own.
+    if ip and ip != device.last_ip:
+        device.last_ip = ip
+        updates.append('last_ip')
 
     if not extra_updates:
         interval = getattr(settings, 'ADMS_LAST_SEEN_WRITE_SECONDS', 30)
@@ -135,7 +142,7 @@ def get_device(request):
 
     device = cache.get(cache_key) if cache_seconds else None
     if device is not None:
-        return _check_active(device)
+        return _check_active(device, _client_ip(request))
 
     device = Device.objects.filter(serial_number=serial).first()
 
@@ -154,12 +161,13 @@ def get_device(request):
             logger.warning("Rejected unknown device SN=%s from %s", serial, _client_ip(request))
             return None, HttpResponseForbidden('Unregistered device')
 
-        ip = _client_ip(request) or f'unknown-{serial}'
-        if Device.objects.filter(ip_address=ip).exists():
-            ip = f'{ip}#{serial}'[:50]
+        # No ip_address: a push device is identified by its serial number, and
+        # the address it happens to reach us from is NAT's business, not ours.
+        # (This used to invent values like "unknown-<serial>" to satisfy a
+        # required unique column - the column is now optional instead.)
         device = Device.objects.create(
             name=f'Unregistered device {serial}',
-            ip_address=ip,
+            last_ip=_client_ip(request) or None,
             serial_number=serial,
             is_active=False,
             push_enabled=True,
@@ -172,13 +180,13 @@ def get_device(request):
     if cache_seconds:
         cache.set(cache_key, device, cache_seconds)
 
-    return _check_active(device)
+    return _check_active(device, _client_ip(request))
 
 
-def _check_active(device):
+def _check_active(device, ip=None):
     """Gate a resolved device on its approval flag and stamp last_seen."""
     if not device.is_active:
-        _touch_last_seen(device)
+        _touch_last_seen(device, ip=ip)
         # 401 rather than OK: the device holds its records and retries.
         return None, HttpResponse('Device not activated', status=401, content_type='text/plain')
 
@@ -186,9 +194,9 @@ def _check_active(device):
         device.push_enabled = True
         # Forced write: this one must not be dropped by the heartbeat throttle,
         # or the device would never be marked as pushing.
-        _touch_last_seen(device, extra_updates=['push_enabled'])
+        _touch_last_seen(device, extra_updates=['push_enabled'], ip=ip)
     else:
-        _touch_last_seen(device)
+        _touch_last_seen(device, ip=ip)
 
     return device, None
 
@@ -345,19 +353,64 @@ def _upload_operlog(device, body, stamp):
     return _ok(len(users))
 
 
-def _upload_options(device, body):
-    """The device reporting its own configuration/firmware after a handshake."""
+def parse_options(body):
+    """Parse an OPTIONS/INFO payload into a dict of upper-case keys.
+
+    Devices send ``key=value`` pairs separated by commas or newlines, and
+    prefix some keys with a tilde (``~SerialNumber``). Both are normalised
+    away so callers can just look up ``SERIALNUMBER``.
+    """
     fields = {}
     for chunk in body.replace('\n', ',').split(','):
         if '=' in chunk:
             key, _, value = chunk.partition('=')
             fields[key.strip().lstrip('~').upper()] = value.strip()
+    return fields
 
+
+# Identity and version details a device reports about itself, mapped to the
+# model fields they populate. Firmware naming varies between versions, hence
+# the alternatives.
+_OPTION_FIELDS = (
+    ('firmware_version', ('FIRMVER', 'FIRMWAREVERSION'), 100),
+    ('device_id', ('DEVICEID', 'DEVICEIDENTIFY', 'MACHINENUMBER'), 32),
+    ('mac_address', ('MAC', 'MACADDRESS', 'ETHERNETMAC'), 32),
+)
+
+
+def _apply_reported_identity(device, fields):
+    """Copy the identifiers a device reports about itself onto its record.
+
+    Only ever fills in or corrects what the device says; it does not clear a
+    value the device stopped reporting, because firmware differs in which keys
+    it sends and a missing key means "not mentioned", not "empty".
+    """
     updates = []
-    firmware = fields.get('FIRMVER') or fields.get('FIRMWAREVERSION')
-    if firmware:
-        device.firmware_version = firmware[:100]
-        updates.append('firmware_version')
+    for attribute, keys, max_length in _OPTION_FIELDS:
+        value = next((fields[key] for key in keys if fields.get(key)), None)
+        if value and getattr(device, attribute) != value[:max_length]:
+            setattr(device, attribute, value[:max_length])
+            updates.append(attribute)
+
+    # A device reporting a serial that differs from the one it connected with
+    # is worth knowing about; it usually means two terminals were configured
+    # from the same backup. Do not overwrite - the SN we matched on is the one
+    # the protocol uses.
+    reported_serial = fields.get('SERIALNUMBER')
+    if reported_serial and device.serial_number and reported_serial != device.serial_number:
+        logger.warning(
+            "Device %s connected as SN=%s but reports SerialNumber=%s",
+            device.name, device.serial_number, reported_serial,
+        )
+
+    return updates
+
+
+def _upload_options(device, body):
+    """The device reporting its own configuration/firmware after a handshake."""
+    fields = parse_options(body)
+
+    updates = _apply_reported_identity(device, fields)
     if body:
         device.device_info = body[:2000]
         updates.append('device_info')
@@ -375,10 +428,15 @@ def getrequest(request):
     if error:
         return error
 
+    # Devices attach an INFO string to this poll carrying firmware, MAC and
+    # device id, so identity details are picked up here too rather than only
+    # on an OPTIONS upload - some firmware never sends one.
     info = request.GET.get('INFO')
     if info and info != device.device_info:
+        updates = _apply_reported_identity(device, parse_options(info))
         device.device_info = info[:2000]
-        device.save(update_fields=['device_info'])
+        updates.append('device_info')
+        device.save(update_fields=updates)
 
     pending = list(
         DeviceCommand.objects.filter(
