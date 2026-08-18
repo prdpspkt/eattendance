@@ -64,6 +64,14 @@ if [ ! -d "$STATIC_ROOT_DIR" ]; then
 fi
 STATIC_ROOT="$STATIC_ROOT_DIR" "$PY" manage.py collectstatic --noinput
 
+# WhiteNoise builds its file index once at start-up (WHITENOISE_AUTOREFRESH is
+# off in production, deliberately - it otherwise stats the filesystem on every
+# request). So collectstatic MUST happen before the service restarts, or the
+# running workers keep serving from a file list that predates the new assets
+# and answer with Django's HTML 404 - which the browser then rejects with
+# "Refused to apply style ... MIME type ('text/html')". The restart below is
+# what publishes new CSS, not collectstatic on its own.
+
 say "Pre-compiling bytecode"
 # Workers then start from cached .pyc instead of compiling on first import.
 # Only affects startup and restart time, but with eight workers that adds up.

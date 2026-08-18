@@ -441,6 +441,14 @@ def todays_attendance(request):
     # Get recent activity (last 20 punches)
     recent_activity = attendances[:20]
 
+    # The full log, paginated. The view has always fetched every punch for the
+    # day and handed it to the template, which never rendered it - so a page
+    # titled "attendance log" showed only the newest 20. Rendering the lot
+    # unpaginated is not the fix either: a busy day is thousands of rows, and
+    # this deployment runs on a 4-core ARM box where that is a real cost.
+    paginator = Paginator(attendances, 50)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
     # Group attendance by device for device summary
     from django.db.models import Count
     device_stats = attendances.values('device__name', 'device__location').annotate(
@@ -453,12 +461,17 @@ def todays_attendance(request):
         'daily_attendances': daily_attendances,
         'recent_activity': recent_activity,
         'device_stats': device_stats,
+        'page_obj': page_obj,
         'stats': {
             'total_employees': total_employees,
             'present': present_count,
             'absent': absent_count,
             'late': late_count,
-            'pending': total_employees - present_count - absent_count,
+            # Employees with no record yet today. Clamped at zero: summaries can
+            # exist for people who are no longer ACTIVE (someone who left
+            # mid-month still has this month's days), which made the arithmetic
+            # go negative and render "-3 pending".
+            'pending': max(total_employees - present_count - absent_count, 0),
         }
     }
     return render(request, 'devices/todays_attendance.html', context)

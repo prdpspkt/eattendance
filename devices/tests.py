@@ -453,3 +453,57 @@ class DeviceRegistrationTests(TestCase):
         self.assertEqual(device.device_id, '3')
         self.assertEqual(device.mac_address, '00:17:61:01:88:2A')
         self.assertEqual(device.firmware_version, 'Ver 6.60')
+
+
+class TodaysAttendanceViewTests(TestCase):
+    """The page has to show the whole day, not just the newest handful."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(username='chief', password='pw-12345')
+        self.client.force_login(self.admin)
+        self.device = Device.objects.create(
+            name='Main Door', serial_number='SNLOG01', is_active=True,
+            push_enabled=True, location='Lobby',
+        )
+        self.employee = None
+        user = User.objects.create_user(username='logger', first_name='Log', last_name='Ger')
+        self.employee = Employee.objects.create(
+            user=user, employee_id='LOG001', join_date=date(2024, 1, 1), device_uid=1,
+        )
+        EmployeeDevice.objects.create(employee=self.employee, device=self.device, device_uid=1)
+
+    def _punches(self, count):
+        base = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
+        for i in range(count):
+            Attendance.objects.create(
+                employee=self.employee, device=self.device,
+                timestamp=base - timedelta(minutes=i), punch_type=i % 2, uid=1,
+            )
+
+    def test_every_punch_of_the_day_is_reachable_not_just_the_latest_20(self):
+        """The view always fetched them all; the template used to drop them."""
+        self._punches(60)
+        response = self.client.get('/devices/todays-attendance/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['page_obj'].paginator.count, 60)
+        self.assertContains(response, 'All punches today')
+
+    def test_the_log_is_paginated_rather_than_dumped_in_one_page(self):
+        """A busy day is thousands of rows on a 4-core ARM box."""
+        self._punches(60)
+        response = self.client.get('/devices/todays-attendance/')
+        self.assertEqual(len(response.context['page_obj'].object_list), 50)
+
+        page_two = self.client.get('/devices/todays-attendance/?page=2')
+        self.assertEqual(len(page_two.context['page_obj'].object_list), 10)
+
+    def test_pending_count_never_goes_negative(self):
+        """Summaries can outlive an employee's ACTIVE status."""
+        response = self.client.get('/devices/todays-attendance/')
+        self.assertGreaterEqual(response.context['stats']['pending'], 0)
+
+    def test_empty_day_shows_an_empty_state_not_a_broken_table(self):
+        response = self.client.get('/devices/todays-attendance/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Nothing recorded today')
