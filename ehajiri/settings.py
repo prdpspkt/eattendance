@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 from django.contrib.messages import constants as message_constants
@@ -124,11 +125,6 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
-
-STATIC_URL = 'static/'
-
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -143,12 +139,19 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 
 # Static and Media
+# https://docs.djangoproject.com/en/5.2/howto/static-files/
 STATIC_URL = 'static/'
+
+# Source directory for this project's own assets (app.css, app.js).
 STATICFILES_DIRS = [BASE_DIR / 'static']
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Destination for `manage.py collectstatic`: the directory the web server
+# serves /static/ from. Override with the STATIC_ROOT environment variable on
+# machines where that path does not exist, e.g. a Windows dev box.
+STATIC_ROOT = Path(os.environ.get('STATIC_ROOT', '/var/www/attendance.thedeepit.com'))
 
 MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', BASE_DIR / 'media'))
 
 # Login URLs
 LOGIN_URL = '/login/'
