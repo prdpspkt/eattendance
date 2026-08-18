@@ -73,6 +73,10 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Must sit directly after SecurityMiddleware. Serves everything under
+    # STATIC_ROOT with correct MIME types and cache headers, so static files
+    # work whether traffic arrives via nginx, a tunnel, or gunicorn directly.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -172,6 +176,20 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 # machines where that path does not exist, e.g. a Windows dev box.
 STATIC_ROOT = Path(os.environ.get('STATIC_ROOT', f'/var/www/{SITE_DOMAIN}'))
 
+# WhiteNoise storage: hashes filenames on collectstatic (app.4f2a1c9d.css) and
+# pre-compresses them, which makes a one-year immutable cache safe because a
+# changed file gets a new URL.
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'core.storage.ResilientManifestStaticFilesStorage',
+    },
+}
+
+# WhiteNoise serves static files only. User uploads (MEDIA_ROOT) still need
+# nginx or a permission-checking Django view.
 MEDIA_URL = 'media/'
 MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', BASE_DIR / 'media'))
 
