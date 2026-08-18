@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Shift - E-Attendance System{% endblock %}
+
+{% block page-title %}Delete Shift{% endblock %}
+
+{% block auth_content %}
+<div class="row">
+    <div class="col-md-6 offset-md-3">
+        <div class="card shadow-sm">
+            <div class="card-header bg-danger text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    Confirm Delete Shift
+                </h6>
+            </div>
+            <div class="card-body">
+                <p>Are you sure you want to delete the shift <strong>"{{ shift.name }}"</strong>?</p>
+
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Warning:</strong> This action cannot be undone. Shift assignments for this
+                    shift will also be removed, and attendance already processed against it will keep
+                    its recorded hours but lose the shift reference.
+                </div>
+
+                <h6>Shift Details:</h6>
+                <table class="table table-sm">
+                    <tr>
+                        <th>Name:</th>
+                        <td>{{ shift.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Timing:</th>
+                        <td>{{ shift.start_time }} - {{ shift.end_time }}</td>
+                    </tr>
+                    <tr>
+                        <th>Late Grace:</th>
+                        <td>{{ shift.late_grace_minutes }} minutes</td>
+                    </tr>
+                    <tr>
+                        <th>Early Exit Tolerance:</th>
+                        <td>{{ shift.early_exit_minutes }} minutes</td>
+                    </tr>
+                    <tr>
+                        <th>Break Duration:</th>
+                        <td>{{ shift.break_duration_minutes }} minutes</td>
+                    </tr>
+                    <tr>
+                        <th>Assigned Employees:</th>
+                        <td>{{ shift.shift_employees.count }}</td>
+                    </tr>
+                </table>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'shift_management' %}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Delete Shift
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

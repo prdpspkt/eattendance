@@ -6,6 +6,8 @@ A comprehensive remote e-attendance management system using ZKTeco biometric dev
 
 ### Core Features
 - **Multi-Device Management**: Support for multiple ZKTeco biometric devices
+- **Two sync transports**: real-time **ADMS/WDMS push** (devices post to the server) or
+  scheduled **pull** over the ZK SDK (server polls devices)
 - **Auto Data Sync**: Automatic attendance fetching every 5 minutes from all devices
 - **Employee Management**: Complete employee lifecycle management
 - **Shift Management**: Flexible shift scheduling with grace periods
@@ -165,6 +167,103 @@ Navigate to Admin section for:
 - Attendance Raw Data: View raw attendance from devices
 - Leave Requests: View all leave requests
 - Travel Orders: View all travel orders
+
+## Device Sync: Push (ADMS/WDMS) vs Pull (SDK)
+
+The system supports both transports at once; a device can use either.
+
+| | Push (ADMS/WDMS) | Pull (ZK SDK) |
+|---|---|---|
+| Who connects | Device → server (outbound HTTP) | Server → device (TCP 4370) |
+| Works behind NAT / remote branch | Yes | Only with port forwarding / VPN |
+| Latency | Seconds (real time) | Up to the poll interval (5 min) |
+| Needs Celery | No | Yes, for scheduled polling |
+| Identified by | Serial number (SN) | IP address |
+
+Both transports share one ingestion path (`devices/ingest.py`), so de-duplication,
+unlinked enrolments and the roll-up into daily summaries behave identically.
+
+### Configuring a device for push mode
+
+1. On the terminal: **Menu → Comm. → Ethernet → Cloud Server / ADMS** (wording varies
+   by firmware; it may be called *Server Setting*, *Cloud Server*, or *ADMS*).
+2. Set:
+   - **Server address**: this server's IP or hostname
+   - **Server port**: the port Django is served on (e.g. `8000`)
+   - **Enable Proxy Server**: off
+   - **HTTPS**: off unless the server presents a certificate the device trusts
+3. Save and reboot the terminal.
+4. The device calls `GET /iclock/cdata?SN=...`. Because the serial number is unknown,
+   it is registered automatically as an **inactive** device and its data is refused
+   with HTTP 401 — the device keeps its records and retries, so nothing is lost.
+5. In Django admin → **Devices**, open the new entry (named *Unregistered device
+   &lt;SN&gt;*), give it a real name and location, tick **is_active**, and save.
+6. On the device's next retry its backlog uploads. The **Mode** column shows
+   *Push - online* while the device is checking in.
+
+To refuse unknown devices outright instead of registering them, set
+`ADMS_AUTO_REGISTER_DEVICES = False`.
+
+### Endpoints
+
+The device firmware fixes these paths; they are mounted at `/iclock/`.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /iclock/cdata?SN=..&options=all` | Handshake; server returns operating parameters |
+| `POST /iclock/cdata?SN=..&table=ATTLOG` | Attendance punches |
+| `POST /iclock/cdata?SN=..&table=OPERLOG` | User enrolments and operation logs |
+| `GET /iclock/getrequest?SN=..` | Device polls for queued commands |
+| `POST /iclock/devicecmd?SN=..` | Device reports command results |
+| `GET /iclock/ping?SN=..` | Heartbeat |
+
+These views are unauthenticated and CSRF-exempt by protocol design — devices cannot
+carry a session. Access is controlled by serial number, and an unknown or inactive
+device is refused. **Expose `/iclock/` only on a trusted network** (LAN or VPN); on a
+public interface, anyone who learns a serial number can post punches for it.
+
+### Sending commands to a device
+
+In push mode the server cannot reach the device, so commands are queued and collected
+on the device's next poll. From Django admin → Devices, select devices and use
+*Push: queue CHECK / INFO / REBOOT*. Results appear under **Device Commands**
+(`return_code` 0 = success).
+
+```python
+device.queue_command('CHECK')                 # re-send anything unacknowledged
+device.push_user(employee_device)             # write a user onto the device
+```
+
+## Processing attendance
+
+Raw punches are not usable until they are rolled up into `DailyAttendance` rows,
+which is what every screen reads. This happens automatically when punches arrive
+(push or pull), and nightly via Celery. To run it by hand or backfill history:
+
+```bash
+python manage.py process_attendance                          # yesterday
+python manage.py process_attendance --date 2026-03-29
+python manage.py process_attendance --from 2024-09-01 --to 2026-03-31
+python manage.py process_attendance --all                    # everything on record
+python manage.py process_attendance --days 30 --employee EMP0001
+```
+
+Re-running is safe: a day is recomputed from its punches each time.
+
+### Attendance rules (settings.py)
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `WEEKEND_DAYS` | `[5, 6]` | Weekly off days (Mon=0 … Sun=6). Work on these days counts entirely as overtime. |
+| `MINIMUM_PUNCH_GAP_MINUTES` | `5` | Two scans closer than this are one scan, not in + out. |
+| `OVERTIME_MINIMUM_MINUTES` | `30` | Overruns shorter than this earn no overtime. |
+| `OVERTIME_ROUNDING_MINUTES` | `15` | Overtime rounds down to this increment. |
+| `OVERTIME_AFTER_SHIFT_END_ONLY` | `True` | Overtime is time past the shift end; when `False`, it is net time beyond the shift's scheduled hours. |
+| `HALF_DAY_MAX_HOURS` | `4` | Net worked hours at or below this are a half day. |
+| `ADMS_PROCESS_ON_PUSH` | `True` | Roll punches up as they arrive, so no Celery worker is required. |
+
+Overtime needs a shift to measure against: an employee with no `EmployeeShift`
+assignment gets hours recorded but no late/early/overtime figures.
 
 ## Celery Tasks
 

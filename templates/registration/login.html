@@ -1,89 +1,135 @@
-<!DOCTYPE html>
-<html lang="en">
+{% load static %}<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - E-Attendance System</title>
+    <meta name="color-scheme" content="light dark">
+    <title>Sign in - E-Attendance</title>
+    <script>
+        (function () {
+            try {
+                var stored = localStorage.getItem('ea-theme');
+                var preferred = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-bs-theme', stored || preferred);
+            } catch (e) { /* storage blocked */ }
+        })();
+    </script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
     <style>
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .auth-layout { min-height: 100vh; display: grid; grid-template-columns: 1fr; }
+        .auth-aside { display: none; }
+        .auth-panel {
+            display: flex; align-items: center; justify-content: center;
+            padding: var(--space-2xl); background: var(--app-bg);
         }
-        .login-card {
-            width: 100%;
-            max-width: 400px;
-            border-radius: 20px;
-            box-shadow: 0 10px 40px rgba(0,0,0,.2);
+        .auth-card { width: 100%; max-width: 380px; }
+        .auth-mark {
+            width: 48px; height: 48px; display: grid; place-items: center;
+            border-radius: var(--radius-lg); font-size: 1.4rem; color: #fff;
+            background: linear-gradient(135deg, var(--app-secondary), var(--app-primary));
+            margin-bottom: var(--space-xl);
         }
-        .login-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 20px 20px 0 0;
-            padding: 40px 30px 30px;
-            text-align: center;
-        }
-        .login-header i {
-            font-size: 4rem;
-            color: white;
-        }
-        .login-header h3 {
-            color: white;
-            margin-top: 15px;
-            font-weight: 600;
+        @media (min-width: 992px) {
+            .auth-layout { grid-template-columns: 1.05fr .95fr; }
+            .auth-aside {
+                display: flex; flex-direction: column; justify-content: space-between;
+                padding: var(--space-3xl);
+                background:
+                    radial-gradient(1100px 460px at 12% 8%, rgba(59,130,246,.28), transparent 60%),
+                    linear-gradient(150deg, #0F1B33 0%, #16264A 55%, #0B1220 100%);
+                color: #E7ECF3;
+            }
+            .auth-aside__headline { font-size: 2rem; font-weight: 700; color: #fff; line-height: 1.2; max-width: 15ch; }
+            .auth-feature { display: flex; gap: var(--space-lg); align-items: flex-start; margin-top: var(--space-2xl); }
+            .auth-feature i { color: #93C5FD; font-size: 1.1rem; margin-top: 2px; }
+            .auth-feature strong { display: block; color: #fff; font-size: .9375rem; }
+            .auth-feature span { font-size: .8125rem; color: #A6B4C8; }
         }
     </style>
 </head>
 <body>
-    <div class="login-card">
-        <div class="login-header">
-            <i class="bi bi-person-check-fill"></i>
-            <h3>E-Attendance System</h3>
+<div class="auth-layout">
+    <aside class="auth-aside" aria-hidden="true">
+        <div>
+            <div class="auth-mark"><i class="bi bi-fingerprint"></i></div>
+            <p class="auth-aside__headline">Attendance that reconciles itself.</p>
         </div>
-        <div class="card-body p-4">
+        <div>
+            <div class="auth-feature">
+                <i class="bi bi-broadcast"></i>
+                <div><strong>Live device sync</strong><span>Punches arrive from every terminal in seconds</span></div>
+            </div>
+            <div class="auth-feature">
+                <i class="bi bi-calculator"></i>
+                <div><strong>Hours and overtime</strong><span>Shift rules, breaks and weekly offs applied automatically</span></div>
+            </div>
+            <div class="auth-feature">
+                <i class="bi bi-check2-square"></i>
+                <div><strong>Leave and travel</strong><span>Requests and approvals in one queue</span></div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="auth-panel">
+        <div class="auth-card">
+            <div class="d-lg-none"><div class="auth-mark"><i class="bi bi-fingerprint"></i></div></div>
+
+            <h1 class="h4 mb-1">Sign in</h1>
+            <p class="text-muted small mb-4">Use the credentials issued by your administrator.</p>
+
             {% if messages %}
-                {% for message in messages %}
-                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
+                <div aria-live="assertive">
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags|default:'info' }} mb-3" role="alert">
+                            <i class="bi alert__icon
+                                {% if 'danger' in message.tags %}bi-exclamation-octagon-fill
+                                {% elif 'warning' in message.tags %}bi-exclamation-triangle-fill
+                                {% elif 'success' in message.tags %}bi-check-circle-fill
+                                {% else %}bi-info-circle-fill{% endif %}" aria-hidden="true"></i>
+                            <div>{{ message }}</div>
+                        </div>
+                    {% endfor %}
+                </div>
             {% endif %}
 
-            <form method="post">
+            <form method="post" data-loading novalidate>
                 {% csrf_token %}
                 <div class="mb-3">
                     <label for="id_username" class="form-label">Username</label>
-                    <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="bi bi-person"></i>
-                        </span>
-                        <input type="text" class="form-control" name="username" id="id_username" required autofocus>
-                    </div>
+                    <input type="text" class="form-control" name="username" id="id_username"
+                           autocomplete="username" autocapitalize="none" spellcheck="false"
+                           required autofocus>
                 </div>
+
                 <div class="mb-4">
                     <label for="id_password" class="form-label">Password</label>
                     <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="bi bi-lock"></i>
-                        </span>
-                        <input type="password" class="form-control" name="password" id="id_password" required>
+                        <input type="password" class="form-control" name="password" id="id_password"
+                               autocomplete="current-password" required>
+                        <button class="btn btn-outline-secondary" type="button"
+                                data-password-toggle="#id_password" aria-label="Show password"
+                                aria-pressed="false">
+                            <i class="bi bi-eye" aria-hidden="true"></i>
+                        </button>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary w-100 py-2 mb-3">
-                    <i class="bi bi-box-arrow-in-right"></i> Login
+
+                <button type="submit" class="btn btn-primary w-100 btn-lg"
+                        data-loading-text="Signing in...">
+                    Sign in
                 </button>
             </form>
 
-            <div class="text-center text-muted small">
-                <p class="mb-0">Forgot your password? Contact your administrator.</p>
-            </div>
+            <p class="text-center text-muted small mt-4 mb-0">
+                Forgotten your password? Contact your office administrator.
+            </p>
         </div>
-    </div>
+    </main>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'js/app.js' %}"></script>
 </body>
 </html>

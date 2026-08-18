@@ -5,15 +5,28 @@ from django.contrib.auth import logout, update_session_auth_hash, authenticate, 
 from django.contrib.auth.decorators import permission_required
 from django.contrib.auth.forms import PasswordChangeForm
 from django.utils import timezone
+from django.utils.formats import date_format
 from datetime import date, datetime, timedelta
 from django.db.models import Sum, Q, Count
 from django.contrib import messages
+
+from django.core.paginator import Paginator
 
 from .models import Employee, Shift
 from .forms import ShiftForm
 from leaves.models import LeaveRequest, LeaveType, LeaveBalance
 from travel_orders.models import TravelOrder
 from attendance.models import DailyAttendance
+
+
+def _parse_date(value):
+    """Parse a YYYY-MM-DD query parameter, ignoring anything unparsable."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return None
 
 
 def custom_login(request):
@@ -181,31 +194,55 @@ def my_attendance(request):
         messages.error(request, "No employee profile found.")
         return redirect('dashboard')
 
-    # Get filter parameters
+    # Date range filter. The template offered start/end date inputs while this
+    # view only read month/year, so the filter silently did nothing.
+    start_date = _parse_date(request.GET.get('start_date'))
+    end_date = _parse_date(request.GET.get('end_date'))
     month = request.GET.get('month')
     year = request.GET.get('year')
 
-    # Get ordering parameter
     order_by = request.GET.get('order_by', 'date')
     order_direction = request.GET.get('order_direction', 'desc')
 
-    # Validate order_by field
-    valid_order_fields = ['date', 'check_in', 'check_out', 'status', 'overtime_hours']
+    valid_order_fields = ['date', 'check_in', 'check_out', 'status', 'working_hours', 'overtime_hours']
     if order_by not in valid_order_fields:
         order_by = 'date'
+    if order_direction not in ('asc', 'desc'):
+        order_direction = 'desc'
 
-    # Apply ordering
     order_prefix = '-' if order_direction == 'desc' else ''
-    attendances = DailyAttendance.objects.filter(employee=employee)
+    attendances = DailyAttendance.objects.filter(employee=employee).select_related('shift')
 
+    if start_date:
+        attendances = attendances.filter(date__gte=start_date)
+    if end_date:
+        attendances = attendances.filter(date__lte=end_date)
     if month and year:
         attendances = attendances.filter(date__month=month, date__year=year)
 
-    attendances = attendances.order_by(f'{order_prefix}{order_by}')[:50]  # Last 50 records
+    # Summary reflects the filtered range, not just the visible page.
+    summary = attendances.aggregate(
+        total_hours=Sum('working_hours'),
+        total_overtime=Sum('overtime_hours'),
+    )
+    summary['present_days'] = attendances.filter(status__in=['PRESENT', 'LATE']).count()
+    summary['late_days'] = attendances.filter(status='LATE').count()
+    summary['absent_days'] = attendances.filter(status='ABSENT').count()
+
+    attendances = attendances.order_by(f'{order_prefix}{order_by}')
+
+    # The old view sliced to 50 rows with no indication more existed.
+    paginator = Paginator(attendances, 25)
+    page = paginator.get_page(request.GET.get('page'))
 
     context = {
         'employee': employee,
-        'attendances': attendances,
+        'attendances': page,
+        'page_obj': page,
+        'paginator': paginator,
+        'summary': summary,
+        'selected_start_date': request.GET.get('start_date', ''),
+        'selected_end_date': request.GET.get('end_date', ''),
         'selected_month': month,
         'selected_year': year,
         'order_by': order_by,
@@ -262,10 +299,12 @@ def attendance_calendar(request):
     attendance_list = list(attendances)
 
     # Get leaves for the selected month
+    import calendar as calendar_module
     from leaves.models import LeaveRequest
+    last_day = calendar_module.monthrange(year, month)[1]
     leaves = LeaveRequest.objects.filter(
         employee=employee,
-        start_date__lte=date(year, month, 31),
+        start_date__lte=date(year, month, last_day),
         end_date__gte=date(year, month, 1),
         status='APPROVED'
     )
@@ -431,7 +470,7 @@ def request_leave(request):
 
             if overlapping_travels.exists():
                 overlapping = overlapping_travels.first()
-                messages.error(request, f'You already have a travel order during this period ({overlapping.start_date|date:"d M Y"} to {overlapping.end_date|date:"d M Y"}). Please choose different dates.')
+                messages.error(request, f'You already have a travel order during this period ({date_format(timezone.localtime(overlapping.start_date), "d M Y")} to {date_format(timezone.localtime(overlapping.end_date), "d M Y")}). Please choose different dates.')
                 context = {
                     'employee': employee,
                     'leave_types': leave_types,
@@ -567,7 +606,7 @@ def request_travel_order(request):
 
             if overlapping_travels.exists():
                 overlapping = overlapping_travels.first()
-                messages.error(request, f'You already have a travel order during this period ({overlapping.start_date|date:"d M Y"} to {overlapping.end_date|date:"d M Y"}). Please choose different dates.')
+                messages.error(request, f'You already have a travel order during this period ({date_format(timezone.localtime(overlapping.start_date), "d M Y")} to {date_format(timezone.localtime(overlapping.end_date), "d M Y")}). Please choose different dates.')
                 context = {
                     'employee': employee,
                     'form': form,

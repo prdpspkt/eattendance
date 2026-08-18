@@ -4,6 +4,9 @@ from django.contrib import messages
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from django.contrib.auth import get_user_model
+from django.utils.crypto import get_random_string
+from django.core.paginator import Paginator
+from django.db.models import Count, Q
 from .models import Device, EmployeeDevice
 from .forms import DeviceForm
 from core.models import Employee
@@ -208,14 +211,39 @@ def employee_management(request):
 
     # Apply ordering
     order_prefix = '-' if order_direction == 'desc' else ''
-    employees = Employee.objects.select_related('user', 'department').order_by(
-        f'{order_prefix}{order_by}'
-    )
+
+    # device_count is annotated rather than counted per row: the template used
+    # employee.employee_devices.count, which fired one query per employee.
+    employees = Employee.objects.select_related('user', 'department').annotate(
+        device_count=Count('employee_devices')
+    ).order_by(f'{order_prefix}{order_by}')
+
+    search = (request.GET.get('q') or '').strip()
+    if search:
+        employees = employees.filter(
+            Q(user__first_name__icontains=search)
+            | Q(user__last_name__icontains=search)
+            | Q(user__email__icontains=search)
+            | Q(employee_id__icontains=search)
+        )
+
+    status = (request.GET.get('status') or '').strip()
+    if status:
+        employees = employees.filter(employment_status=status)
+
     devices = Device.objects.all()
 
+    paginator = Paginator(employees, 25)
+    page = paginator.get_page(request.GET.get('page'))
+
     context = {
-        'employees': employees,
+        'employees': page,
+        'page_obj': page,
+        'paginator': paginator,
         'devices': devices,
+        'search': search,
+        'status_filter': status,
+        'status_choices': Employee._meta.get_field('employment_status').choices,
         'order_by': order_by,
         'order_direction': order_direction,
     }
@@ -233,12 +261,13 @@ def employee_create(request):
         form = EmployeeCreateForm(request.POST, request.FILES)
 
         if form.is_valid():
+            user = None
             try:
                 # Create user account
                 user = User.objects.create_user(
                     username=form.cleaned_data['username'],
                     email=form.cleaned_data['email'],
-                    password=form.cleaned_data.get('password') or User.objects.make_random_password(),
+                    password=form.cleaned_data.get('password') or get_random_string(12),
                     first_name=form.cleaned_data['first_name'],
                     last_name=form.cleaned_data['last_name'],
                     phone=form.cleaned_data.get('phone', ''),

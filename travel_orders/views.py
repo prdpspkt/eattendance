@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
 from django.utils import timezone
+from django.utils.formats import date_format
 from .models import TravelOrder
 from .forms import TravelOrderForm
 from core.models import Employee
@@ -88,7 +89,7 @@ def create_travel_order_for_employee(request, employee):
 
             if overlapping_travels.exists():
                 overlapping = overlapping_travels.first()
-                messages.error(request, f'Employee already has a travel order during this period ({overlapping.start_date|date:"d M Y"} to {overlapping.end_date|date:"d M Y"}). Please choose different dates.')
+                messages.error(request, f'Employee already has a travel order during this period ({date_format(timezone.localtime(overlapping.start_date), "d M Y")} to {date_format(timezone.localtime(overlapping.end_date), "d M Y")}). Please choose different dates.')
                 context = {
                     'employee': employee,
                     'form': form,

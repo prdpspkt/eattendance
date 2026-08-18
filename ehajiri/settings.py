@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 
+from django.contrib.messages import constants as message_constants
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -68,6 +70,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'core.context_processors.navigation',
             ],
         },
     },
@@ -151,3 +154,66 @@ MEDIA_ROOT = BASE_DIR / 'media'
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/login/'
+
+# Map Django message levels onto Bootstrap alert classes. Without this, an
+# error message renders as "alert-error", which Bootstrap does not define, so
+# error messages appear unstyled.
+MESSAGE_TAGS = {
+    message_constants.DEBUG: 'secondary',
+    message_constants.ERROR: 'danger',
+}
+
+# Attendance rules
+# ----------------
+# Weekly off days, using Python's weekday() numbering (Monday=0 ... Sunday=6).
+# Saturday and Sunday.
+#
+# NOTE: the punches already in this database show a Sunday-Friday working week
+# (Saturday: 4 punches on 4 dates; Sunday: 217 punches on 43 dates). If that is
+# this office's actual pattern, set WEEKEND_DAYS = [5] for Saturday only,
+# otherwise every Sunday worked is booked entirely as overtime.
+WEEKEND_DAYS = [5, 6]
+
+# Two scans closer together than this are the same person re-presenting a
+# finger, not a check-in followed by a check-out.
+MINIMUM_PUNCH_GAP_MINUTES = 5
+
+# Overtime policy
+OVERTIME_MINIMUM_MINUTES = 30   # ignore anything below this; avoids OT noise
+OVERTIME_ROUNDING_MINUTES = 15  # round OT down to this increment
+# Count overtime only for time worked after the shift ends. When False,
+# overtime is any net worked time beyond the shift's scheduled hours.
+OVERTIME_AFTER_SHIFT_END_ONLY = True
+# Minimum net worked hours before a day counts as a full day rather than half.
+HALF_DAY_MAX_HOURS = 4
+
+# ADMS / WDMS push protocol
+# -------------------------
+# Devices post to /iclock/ instead of being polled over TCP. Configure the
+# terminal with: Comm. -> Ethernet -> Cloud Server / ADMS -> this server's
+# address and port.
+# Auto-register unknown serial numbers as inactive devices awaiting approval.
+# With this off, unknown devices are rejected outright.
+ADMS_AUTO_REGISTER_DEVICES = True
+# Roll pushed punches into daily summaries immediately, so the app works
+# without a Celery worker running.
+ADMS_PROCESS_ON_PUSH = True
+# Maximum queued commands handed to a device in a single poll.
+ADMS_MAX_COMMANDS_PER_POLL = 10
+# A device is shown as offline if it has not contacted us within this window.
+ADMS_OFFLINE_AFTER_SECONDS = 180
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {'format': '{asctime} {levelname} {name}: {message}', 'style': '{'},
+    },
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'standard'},
+    },
+    'loggers': {
+        'devices': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+        'attendance': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+    },
+}

@@ -1,90 +1,201 @@
 {% extends 'base.html' %}
+{% load core_extras %}
 
-{% block title %}Device Management - E-Attendance System{% endblock %}
-
-{% block page-title %}Device Management{% endblock %}
+{% block title %}Devices - E-Attendance{% endblock %}
+{% block page-title %}Devices{% endblock %}
 
 {% block auth_content %}
-<div class="row">
-    <div class="col-12">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white py-3">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Biometric Devices</h5>
-                    <a href="{% url 'devices:device_create' %}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Add Device
-                    </a>
-                </div>
+<div class="page-header">
+    <div>
+        <p class="page-header__subtitle">
+            {{ devices|length }} device{{ devices|length|pluralize }} configured
+        </p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'devices:unlinked_enrollments' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-link-45deg" aria-hidden="true"></i> Unlinked enrolments
+        </a>
+        <a href="{% url 'devices:device_create' %}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add device
+        </a>
+    </div>
+</div>
+
+{% if devices %}
+<div class="row g-3 mb-4">
+    {% for device in devices %}
+    <div class="col-md-6 col-xl-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <span class="card-title text-truncate">{{ device.name }}</span>
+                <span class="ms-auto">
+                    {% if not device.is_active %}
+                        <span class="chip chip--neutral">Inactive</span>
+                    {% elif device.push_enabled and device.is_online %}
+                        <span class="chip chip--success">Online</span>
+                    {% elif device.push_enabled %}
+                        <span class="chip chip--warning">Not seen</span>
+                    {% else %}
+                        <span class="chip chip--info">Pull mode</span>
+                    {% endif %}
+                </span>
             </div>
             <div class="card-body">
-                {% if devices %}
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Device Name</th>
-                                <th>IP Address</th>
-                                <th>Location</th>
-                                <th>Status</th>
-                                <th>Last Sync</th>
-                                <th>Sync Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for device in devices %}
-                            <tr>
-                                <td>
-                                    <strong>{{ device.name }}</strong>
-                                    <br>
-                                    <small class="text-muted">Port: {{ device.port }}</small>
-                                </td>
-                                <td>{{ device.ip_address }}</td>
-                                <td>{{ device.location|default:"Not set" }}</td>
-                                <td>
-                                    {% if device.is_active %}
-                                    <span class="badge bg-success">Active</span>
-                                    {% else %}
-                                    <span class="badge bg-secondary">Inactive</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if device.last_sync %}
-                                    {{ device.last_sync|date:"d M Y, H:i" }}
-                                    {% else %}
-                                    <span class="text-muted">Never</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if device.last_sync_status %}
-                                    <small class="{% if 'Success' in device.last_sync_status %}text-success{% else %}text-danger{% endif %}">
-                                        {{ device.last_sync_status }}
-                                    </small>
-                                    {% else %}
-                                    <span class="text-muted">Not synced</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <a href="{% url 'devices:device_detail' device.id %}" class="btn btn-sm btn-outline-primary">
-                                        <i class="bi bi-eye"></i> View
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="text-center py-5">
-                    <i class="bi bi-cpu" style="font-size: 4rem; color: #dee2e6;"></i>
-                    <p class="text-muted mt-3">No devices configured yet.</p>
-                    <a href="{% url 'devices:device_create' %}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Add Your First Device
-                    </a>
-                </div>
+                <dl class="row small mb-3 g-2">
+                    <dt class="col-5 text-muted fw-normal">Address</dt>
+                    <dd class="col-7 mono mb-0">{{ device.ip_address }}:{{ device.port }}</dd>
+
+                    <dt class="col-5 text-muted fw-normal">Serial</dt>
+                    <dd class="col-7 mono mb-0">{{ device.serial_number|default:"—" }}</dd>
+
+                    <dt class="col-5 text-muted fw-normal">Location</dt>
+                    <dd class="col-7 mb-0">{{ device.location|default:"—" }}</dd>
+
+                    <dt class="col-5 text-muted fw-normal">Enrolled</dt>
+                    <dd class="col-7 mb-0">{{ device.device_employees.count }} user{{ device.device_employees.count|pluralize }}</dd>
+
+                    <dt class="col-5 text-muted fw-normal">
+                        {% if device.push_enabled %}Last contact{% else %}Last sync{% endif %}
+                    </dt>
+                    <dd class="col-7 mb-0">
+                        {% if device.push_enabled and device.last_seen %}
+                            <time datetime="{{ device.last_seen|date:'c' }}">{{ device.last_seen|timesince }} ago</time>
+                        {% elif device.last_sync %}
+                            <time datetime="{{ device.last_sync|date:'c' }}">{{ device.last_sync|timesince }} ago</time>
+                        {% else %}
+                            <span class="cell-empty">Never</span>
+                        {% endif %}
+                    </dd>
+                </dl>
+
+                {% if device.last_sync_status %}
+                    <p class="small text-muted mb-3 text-truncate" title="{{ device.last_sync_status }}">
+                        <i class="bi bi-info-circle me-1" aria-hidden="true"></i>{{ device.last_sync_status }}
+                    </p>
                 {% endif %}
+
+                {% if not device.is_active and device.serial_number %}
+                    <div class="alert alert-warning py-2 mb-3">
+                        <i class="bi bi-exclamation-triangle-fill alert__icon" aria-hidden="true"></i>
+                        <div class="small">
+                            This device contacted the server but is not activated, so its
+                            data is being refused. Activate it in the admin to accept punches.
+                        </div>
+                    </div>
+                {% endif %}
+
+                <div class="d-flex gap-2">
+                    <a href="{% url 'devices:device_detail' device.id %}" class="btn btn-sm btn-outline-primary flex-grow-1">
+                        <i class="bi bi-eye" aria-hidden="true"></i> Details
+                    </a>
+                    <a href="{% url 'devices:device_update' device.id %}" class="btn btn-sm btn-outline-secondary"
+                       aria-label="Edit {{ device.name }}">
+                        <i class="bi bi-pencil" aria-hidden="true"></i>
+                    </a>
+                    {% if not device.push_enabled %}
+                    <form method="post" action="{% url 'devices:sync_attendance' device.id %}" data-loading>
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                data-loading-text="Syncing" aria-label="Sync attendance from {{ device.name }}">
+                            <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
+    {% endfor %}
 </div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-people" aria-hidden="true"></i>
+        <span class="card-title">Device enrolments</span>
+        <span class="ms-auto small text-muted" id="enrollmentCount">{{ employee_devices|length }} total</span>
+    </div>
+    <div class="card-body">
+        <div class="toolbar">
+            <div class="flex-grow-1" style="max-width: 320px;">
+                <label for="enrollmentSearch" class="visually-hidden">Search enrolments</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
+                    <input type="search" class="form-control" id="enrollmentSearch"
+                           placeholder="Filter by name, UID or device"
+                           data-table-filter="#enrollmentTable" data-filter-status="#enrollmentCount">
+                </div>
+            </div>
+        </div>
+
+        {% if employee_devices %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="enrollmentTable">
+                <thead>
+                    <tr>
+                        <th scope="col">Person</th>
+                        <th scope="col">Device</th>
+                        <th scope="col">UID</th>
+                        <th scope="col">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for enrollment in employee_devices %}
+                    <tr>
+                        <td>
+                            {% if enrollment.employee %}
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="avatar avatar--sm" aria-hidden="true">{{ enrollment.employee.user|initials }}</span>
+                                    <span class="fw-semibold">{{ enrollment.employee.user.get_full_name|default:enrollment.employee.user.username }}</span>
+                                </div>
+                            {% else %}
+                                <span class="text-muted">{{ enrollment.user_name|default:"Unknown user" }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">{{ enrollment.device.name }}</td>
+                        <td class="mono">{{ enrollment.device_uid }}</td>
+                        <td>
+                            {% if enrollment.employee %}
+                                <span class="chip chip--success">Linked</span>
+                            {% else %}
+                                <a href="{% url 'devices:unlinked_enrollments' %}" class="chip chip--warning text-decoration-none">
+                                    Needs linking
+                                </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-person-badge"></i></div>
+            <p class="empty-state__title">No enrolments yet</p>
+            <p class="empty-state__text mb-0">
+                Enrolments appear when a device pushes its user list, or after you run a
+                user sync from the device detail page.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% else %}
+<div class="card">
+    <div class="card-body">
+        <div class="empty-state">
+            <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-cpu"></i></div>
+            <p class="empty-state__title">No devices configured</p>
+            <p class="empty-state__text">
+                Add a device to poll it over the ZK SDK, or point a terminal at
+                <code>/iclock/</code> on this server and it will register itself for
+                real-time push.
+            </p>
+            <a href="{% url 'devices:device_create' %}" class="btn btn-sm btn-primary">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i> Add device
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

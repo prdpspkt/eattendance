@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Device, EmployeeDevice
+from .models import Device, DeviceCommand, EmployeeDevice
 
 @admin.register(EmployeeDevice)
 class EmployeeDeviceAdmin(admin.ModelAdmin):
@@ -14,11 +14,28 @@ class EmployeeDeviceAdmin(admin.ModelAdmin):
         return super().get_queryset(request).select_related('employee__user', 'device')
 
 
+@admin.register(DeviceCommand)
+class DeviceCommandAdmin(admin.ModelAdmin):
+    """Commands queued for devices to collect over the ADMS push protocol."""
+    list_display = ['device', 'short_command', 'status', 'return_code', 'created_at', 'completed_at']
+    list_filter = ['status', 'device', 'created_at']
+    search_fields = ['command', 'device__name', 'device__serial_number']
+    readonly_fields = ['status', 'return_code', 'response', 'sent_at', 'completed_at', 'created_at']
+    ordering = ['-created_at']
+
+    def short_command(self, obj):
+        return obj.command[:60] + ('...' if len(obj.command) > 60 else '')
+    short_command.short_description = 'Command'
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('device')
+
+
 @admin.register(Device)
 class DeviceAdmin(admin.ModelAdmin):
-    list_display = ['name', 'ip_address', 'port', 'location', 'is_active', 'last_sync', 'last_sync_status', 'sync_buttons']
-    list_filter = ['is_active', 'created_at']
-    search_fields = ['name', 'ip_address', 'location']
+    list_display = ['name', 'ip_address', 'serial_number', 'connection_mode', 'location', 'is_active', 'last_sync', 'last_sync_status', 'sync_buttons']
+    list_filter = ['is_active', 'push_enabled', 'created_at']
+    search_fields = ['name', 'ip_address', 'location', 'serial_number']
     ordering = ['name']
 
     fieldsets = (
@@ -28,13 +45,29 @@ class DeviceAdmin(admin.ModelAdmin):
         ('Configuration', {
             'fields': ('is_active', 'connection_timeout')
         }),
+        ('Push Protocol (ADMS/WDMS)', {
+            'fields': ('serial_number', 'push_enabled', 'last_seen', 'firmware_version',
+                       'device_info', 'attlog_stamp', 'operlog_stamp'),
+            'description': (
+                'Point the terminal at this server under Comm. &rarr; Ethernet &rarr; '
+                'Cloud Server / ADMS. The serial number is filled in automatically the '
+                'first time the device connects.'
+            ),
+        }),
         ('Sync Information', {
             'fields': ('last_sync', 'last_sync_status',),
             'classes': ('collapse',)
         }),
     )
 
-    readonly_fields = ['last_sync', 'last_sync_status']
+    readonly_fields = ['last_sync', 'last_sync_status', 'last_seen', 'push_enabled',
+                       'firmware_version', 'device_info', 'attlog_stamp', 'operlog_stamp']
+
+    def connection_mode(self, obj):
+        if not obj.push_enabled:
+            return 'Pull (SDK)'
+        return 'Push - online' if obj.is_online else 'Push - offline'
+    connection_mode.short_description = 'Mode'
 
     def sync_buttons(self, obj):
         """Custom buttons for syncing"""
@@ -90,7 +123,41 @@ class DeviceAdmin(admin.ModelAdmin):
 
         return redirect('/admin/devices/device/')
 
-    actions = ['test_connection', 'sync_users_devices', 'sync_attendance_devices']
+    actions = ['test_connection', 'sync_users_devices', 'sync_attendance_devices',
+               'queue_check', 'queue_info', 'queue_reboot']
+
+    def _queue(self, request, queryset, command, label):
+        """Queue an ADMS command on each selected push-enabled device."""
+        from django.contrib import messages
+        queued = 0
+        for device in queryset:
+            if not device.push_enabled:
+                messages.warning(
+                    request,
+                    f"{device.name}: not using the push protocol, command not queued."
+                )
+                continue
+            device.queue_command(command, created_by=request.user)
+            queued += 1
+        if queued:
+            messages.success(
+                request,
+                f"Queued '{label}' on {queued} device(s). "
+                "They will pick it up on their next poll."
+            )
+
+    def queue_check(self, request, queryset):
+        """Ask the device to re-send anything the server has not acknowledged."""
+        self._queue(request, queryset, 'CHECK', 'CHECK')
+    queue_check.short_description = "Push: queue CHECK (re-send pending data)"
+
+    def queue_info(self, request, queryset):
+        self._queue(request, queryset, 'INFO', 'INFO')
+    queue_info.short_description = "Push: queue INFO (report device status)"
+
+    def queue_reboot(self, request, queryset):
+        self._queue(request, queryset, 'REBOOT', 'REBOOT')
+    queue_reboot.short_description = "Push: queue REBOOT"
 
     def test_connection(self, request, queryset):
         """Admin action to test connection"""

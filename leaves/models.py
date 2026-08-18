@@ -85,20 +85,15 @@ class LeaveRequest(models.Model):
         return f"{self.employee.user.get_full_name()} - {self.leave_type.name} ({self.start_date} to {self.end_date})"
 
     def calculate_days(self):
-        """Calculate total leave days excluding weekends"""
-        from datetime import timedelta
-        start = self.start_date
-        end = self.end_date
-        days = 0
-        current = start
-        while current <= end:
-            # Monday=0, Sunday=6
-            if current.weekday() < 5:  # Exclude Saturday (5) and Sunday (6)
-                days += 1
-            current += timedelta(days=1)
-        return days
+        """Total leave days in the range, excluding the configured weekly off days."""
+        from core.workweek import working_days_between
+        return working_days_between(self.start_date, self.end_date)
 
     def save(self, *args, **kwargs):
-        if not self.total_days:
+        # Recompute whenever the dates change, not only on first save, so an
+        # edited request does not keep the day count from its old dates.
+        if self.start_date and self.end_date:
             self.total_days = self.calculate_days()
+        elif not self.total_days:
+            self.total_days = 0
         super().save(*args, **kwargs)

@@ -1,13 +1,63 @@
+from datetime import datetime, timedelta
+
+from django.conf import settings
 from django.db import models
+from django.utils import timezone
+
 from core.models import Employee, Shift
+from core.workweek import is_weekend
 from devices.models import Device
+
+# ZKTeco punch/status codes as reported by the device (both the pull SDK and
+# the ADMS push protocol use these values).
+PUNCH_CHECK_IN = 0
+PUNCH_CHECK_OUT = 1
+PUNCH_BREAK_OUT = 2
+PUNCH_BREAK_IN = 3
+PUNCH_OVERTIME_IN = 4
+PUNCH_OVERTIME_OUT = 5
+
+PUNCH_TYPE_CHOICES = [
+    (PUNCH_CHECK_IN, 'Check In'),
+    (PUNCH_CHECK_OUT, 'Check Out'),
+    (PUNCH_BREAK_OUT, 'Break Out'),
+    (PUNCH_BREAK_IN, 'Break In'),
+    (PUNCH_OVERTIME_IN, 'Overtime In'),
+    (PUNCH_OVERTIME_OUT, 'Overtime Out'),
+]
+
+CHECK_IN_CODES = {PUNCH_CHECK_IN, PUNCH_OVERTIME_IN}
+CHECK_OUT_CODES = {PUNCH_CHECK_OUT, PUNCH_OVERTIME_OUT}
+
+# How far outside an overnight shift's window punches are still attributed to
+# that shift's day.
+OVERNIGHT_PUNCH_TOLERANCE_HOURS = 4
+
+
+def _as_aware(day, time_of_day, day_offset=0):
+    """Combine a date and a time into a datetime in the active timezone."""
+    naive = datetime.combine(day + timedelta(days=day_offset), time_of_day)
+    if settings.USE_TZ:
+        return timezone.make_aware(naive, timezone.get_current_timezone())
+    return naive
+
+
+def _day_bounds(day):
+    """Start (inclusive) and end (exclusive) of a calendar day, timezone-aware."""
+    start = _as_aware(day, datetime.min.time())
+    return start, start + timedelta(days=1)
+
 
 class Attendance(models.Model):
     """Attendance record from biometric device"""
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='attendances')
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='attendances')
     timestamp = models.DateTimeField(db_index=True)
-    punch_type = models.IntegerField(default=0, help_text="0=Check-in, 1=Check-out, 2=Overtime in, 3=Overtime out")
+    punch_type = models.IntegerField(
+        default=PUNCH_CHECK_IN,
+        choices=PUNCH_TYPE_CHOICES,
+        help_text="0=Check in, 1=Check out, 2=Break out, 3=Break in, 4=Overtime in, 5=Overtime out",
+    )
     uid = models.IntegerField(help_text="Device UID")
     is_processed = models.BooleanField(default=False, help_text="Whether this record has been processed for calculations")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -22,114 +72,247 @@ class Attendance(models.Model):
     def __str__(self):
         return f"{self.employee.user.get_full_name()} - {self.timestamp}"
 
+    # ------------------------------------------------------------------
+    # Daily processing
+    # ------------------------------------------------------------------
     @classmethod
-    def process_daily_attendance(cls, employee, date):
-        """Process daily attendance and calculate hours"""
-        from datetime import datetime, timedelta
-        attendances = cls.objects.filter(
-            employee=employee,
-            timestamp__date=date
-        ).order_by('timestamp')
-
-        if not attendances.exists():
-            return None
-
-        # Get shift for the date
+    def get_shift_for(cls, employee, day):
+        """Return the shift assigned to ``employee`` that is effective on ``day``."""
         from core.models import EmployeeShift
         try:
             employee_shift = EmployeeShift.objects.filter(
                 employee=employee,
-                effective_date__lte=date
-                ).filter(
-                    models.Q(end_date__isnull=True) | models.Q(end_date__gte=date)
-                ).latest('effective_date')
-            shift = employee_shift.shift
+                effective_date__lte=day,
+            ).filter(
+                models.Q(end_date__isnull=True) | models.Q(end_date__gte=day)
+            ).latest('effective_date')
         except EmployeeShift.DoesNotExist:
-            shift = None
+            return None
+        return employee_shift.shift
 
-        # Create or update daily attendance record
-        daily_attendance, created = DailyAttendance.objects.get_or_create(
+    @classmethod
+    def punch_window(cls, day, shift):
+        """Time range whose punches belong to ``day``.
+
+        For a normal shift this is the calendar day. For an overnight shift
+        (e.g. 20:00-05:00) the window follows the shift across midnight, so the
+        morning check-out is attributed to the day the shift started.
+        """
+        if shift is None or not shift.is_overnight:
+            return _day_bounds(day)
+
+        tolerance = timedelta(hours=OVERNIGHT_PUNCH_TOLERANCE_HOURS)
+        start = _as_aware(day, shift.start_time) - tolerance
+        end = _as_aware(day, shift.end_time, day_offset=1) + tolerance
+        return start, end
+
+    @classmethod
+    def process_daily_attendance(cls, employee, date, create_if_no_punches=True):
+        """Build (or rebuild) the ``DailyAttendance`` summary for one employee/day.
+
+        Returns the DailyAttendance instance, or None when there is nothing to
+        record and ``create_if_no_punches`` is False.
+        """
+        shift = cls.get_shift_for(employee, date)
+        window_start, window_end = cls.punch_window(date, shift)
+
+        punch_qs = cls.objects.filter(
             employee=employee,
-            date=date,
-            defaults={'shift': shift}
+            timestamp__gte=window_start,
+            timestamp__lt=window_end,
+        ).order_by('timestamp')
+        punches = list(punch_qs)
+
+        if not punches and not create_if_no_punches:
+            return None
+
+        daily, _created = DailyAttendance.objects.get_or_create(
+            employee=employee, date=date, defaults={'shift': shift}
+        )
+        daily.shift = shift
+        notes = []
+
+        check_in, check_out = cls._derive_in_out(punches, notes)
+        daily.check_in = check_in
+        daily.check_out = check_out
+
+        # --- late arrival / early exit -------------------------------------
+        daily.late_minutes = None
+        daily.early_exit_minutes = None
+        shift_start = shift_end = None
+        if shift:
+            shift_start = _as_aware(date, shift.start_time)
+            shift_end = _as_aware(date, shift.end_time, day_offset=1 if shift.is_overnight else 0)
+
+            if check_in:
+                grace_deadline = shift_start + timedelta(minutes=shift.late_grace_minutes)
+                if check_in > grace_deadline:
+                    daily.late_minutes = int((check_in - shift_start).total_seconds() // 60)
+
+            if check_out:
+                early_deadline = shift_end - timedelta(minutes=shift.early_exit_minutes)
+                if check_out < early_deadline:
+                    daily.early_exit_minutes = int((shift_end - check_out).total_seconds() // 60)
+
+        # --- worked time ---------------------------------------------------
+        net_minutes = None
+        if check_in and check_out:
+            gross_minutes = (check_out - check_in).total_seconds() / 60
+            break_minutes = cls._break_minutes(punches, shift, gross_minutes)
+            net_minutes = max(0.0, gross_minutes - break_minutes)
+            daily.working_hours = round(net_minutes / 60, 2)
+            if break_minutes:
+                notes.append(f"{int(break_minutes)} min break deducted")
+        else:
+            # Never invent hours for an incomplete day: a missing check-out is
+            # an exception for an admin to resolve, not an estimate to publish.
+            daily.working_hours = None
+            if check_in:
+                notes.append("No check-out recorded")
+
+        # --- overtime ------------------------------------------------------
+        daily.overtime_hours = cls._overtime_hours(
+            date, shift, shift_end, check_in, check_out, net_minutes, notes
         )
 
-        if shift:
-            daily_attendance.shift = shift
+        # --- status --------------------------------------------------------
+        daily.status = cls._status(employee, date, punches, daily, net_minutes)
 
-        # Find check-in and check-out
-        check_ins = attendances.filter(punch_type__in=[0, 2])
-        check_outs = attendances.filter(punch_type__in=[1, 3])
+        daily.notes = "; ".join(notes) if notes else None
+        daily.save()
 
-        if check_ins.exists():
-            daily_attendance.check_in = check_ins.first().timestamp
+        if punches:
+            punch_qs.filter(is_processed=False).update(is_processed=True)
 
-        if check_outs.exists():
-            daily_attendance.check_out = check_outs.last().timestamp
+        return daily
 
-        # Calculate late arrival
-        if daily_attendance.check_in and shift:
-            shift_start = datetime.combine(date, shift.start_time)
-            grace_time = shift_start + timedelta(minutes=shift.late_grace_minutes)
-            if daily_attendance.check_in > grace_time:
-                daily_attendance.late_minutes = int((daily_attendance.check_in - shift_start).total_seconds() / 60)
+    # -- helpers ----------------------------------------------------------
+    @staticmethod
+    def _derive_in_out(punches, notes):
+        """First check-in and last check-out for the day.
 
-        # Calculate early exit
-        if daily_attendance.check_out and shift:
-            shift_end = datetime.combine(date, shift.end_time)
-            early_tolerance = shift_end - timedelta(minutes=shift.early_exit_minutes)
-            if daily_attendance.check_out < early_tolerance:
-                daily_attendance.early_exit_minutes = int((shift_end - daily_attendance.check_out).total_seconds() / 60)
+        Prefers the device's punch codes. Many ZKTeco deployments leave every
+        punch on the default code, so when the codes cannot separate in from
+        out this falls back to first punch / last punch.
 
-        # Calculate working hours
-        if daily_attendance.check_in and daily_attendance.check_out:
-            # Normal case: both check-in and check-out
-            total_seconds = (daily_attendance.check_out - daily_attendance.check_in).total_seconds()
-            daily_attendance.working_hours = round(total_seconds / 3600, 2)
+        Scans a few seconds apart are the same person re-presenting a finger,
+        not a departure, so a "check-out" within MINIMUM_PUNCH_GAP_MINUTES of
+        the check-in is discarded rather than booked as a zero-hour day.
+        """
+        if not punches:
+            return None, None
 
-            # Calculate overtime
-            if shift:
-                shift_hours = shift.get_working_hours()
-                if daily_attendance.working_hours > shift_hours:
-                    daily_attendance.overtime_hours = round(daily_attendance.working_hours - shift_hours, 2)
+        ins = [p.timestamp for p in punches if p.punch_type in CHECK_IN_CODES]
+        outs = [p.timestamp for p in punches if p.punch_type in CHECK_OUT_CODES]
 
-        elif daily_attendance.check_in and shift:
-            # Employee checked in but forgot to check out
-            # Estimate working hours from check-in to shift end time
-            shift_end = datetime.combine(date, shift.end_time)
-            # Only calculate if check-in is before shift end
-            if daily_attendance.check_in < shift_end:
-                total_seconds = (shift_end - daily_attendance.check_in).total_seconds()
-                daily_attendance.working_hours = round(total_seconds / 3600, 2)
+        first_punch = punches[0].timestamp
+        last_punch = punches[-1].timestamp
 
-                # Calculate overtime if applicable
-                shift_hours = shift.get_working_hours()
-                if daily_attendance.working_hours > shift_hours:
-                    daily_attendance.overtime_hours = round(daily_attendance.working_hours - shift_hours, 2)
+        check_in = min(ins) if ins else first_punch
+        check_out = max(outs) if outs else None
 
-                # Add note about estimated time
-                if not daily_attendance.notes:
-                    daily_attendance.notes = "Working hours estimated (no check-out recorded)"
-        elif daily_attendance.check_in:
-            # Employee checked in but no shift assigned
-            # Cannot estimate working hours without shift info
-            if not daily_attendance.notes:
-                daily_attendance.notes = "Checked in but no check-out recorded (no shift assigned)"
-
-        # Determine status
-        if daily_attendance.check_in:
-            # If employee checked in, they are PRESENT (even if no check-out)
-            # Check if they were late
-            if daily_attendance.late_minutes and daily_attendance.late_minutes > 0:
-                daily_attendance.status = 'LATE'
+        if check_out is None or check_out <= check_in:
+            # Either no out-coded punch, or the codes disagree with the clock.
+            # Trust the clock and span the day's punches.
+            if last_punch > check_in:
+                if check_out is not None:
+                    notes.append("Punch codes inconsistent; used first/last punch")
+                else:
+                    notes.append("Check-out inferred from last punch")
+                check_out = last_punch
             else:
-                daily_attendance.status = 'PRESENT'
-        else:
-            # No check-in recorded
-            daily_attendance.status = 'ABSENT'
+                check_out = None
 
-        daily_attendance.save()
-        return daily_attendance
+        if check_out is not None:
+            minimum_gap = timedelta(
+                minutes=getattr(settings, 'MINIMUM_PUNCH_GAP_MINUTES', 5)
+            )
+            if check_out - check_in < minimum_gap:
+                check_out = None
+                notes.append("Repeated scan ignored; no genuine check-out")
+
+        return check_in, check_out
+
+    @staticmethod
+    def _break_minutes(punches, shift, gross_minutes):
+        """Break time to deduct: recorded break punches if present, else the
+        shift's scheduled break on days long enough to have taken one."""
+        recorded = 0.0
+        break_start = None
+        for punch in punches:
+            if punch.punch_type == PUNCH_BREAK_OUT and break_start is None:
+                break_start = punch.timestamp
+            elif punch.punch_type == PUNCH_BREAK_IN and break_start is not None:
+                recorded += (punch.timestamp - break_start).total_seconds() / 60
+                break_start = None
+        if recorded > 0:
+            return recorded
+
+        if shift and shift.break_duration_minutes:
+            half_day_minutes = getattr(settings, 'HALF_DAY_MAX_HOURS', 4) * 60
+            if gross_minutes > half_day_minutes + shift.break_duration_minutes:
+                return float(shift.break_duration_minutes)
+        return 0.0
+
+    @staticmethod
+    def _overtime_hours(day, shift, shift_end, check_in, check_out, net_minutes, notes):
+        """Overtime for the day, or None when it cannot be determined.
+
+        Rules:
+          * an incomplete day (no check-out) earns no overtime;
+          * work on a weekly off day is entirely overtime;
+          * otherwise overtime is time worked past the shift end (default) or
+            net time beyond the shift's scheduled hours;
+          * short overruns below the configured minimum are ignored, and the
+            remainder is rounded down to the configured increment.
+        """
+        if not (check_in and check_out) or net_minutes is None:
+            return None
+
+        if is_weekend(day):
+            overtime = net_minutes
+            notes.append("Worked on a weekly off day; counted as overtime")
+        elif shift is None:
+            # No shift assigned means no baseline to measure overtime against.
+            return None
+        elif getattr(settings, 'OVERTIME_AFTER_SHIFT_END_ONLY', True):
+            overtime = (check_out - shift_end).total_seconds() / 60
+        else:
+            overtime = net_minutes - (shift.get_working_hours() * 60)
+
+        if overtime < getattr(settings, 'OVERTIME_MINIMUM_MINUTES', 30):
+            return 0
+
+        increment = getattr(settings, 'OVERTIME_ROUNDING_MINUTES', 15) or 1
+        overtime = (int(overtime) // increment) * increment
+        return round(overtime / 60, 2)
+
+    @staticmethod
+    def _status(employee, day, punches, daily, net_minutes):
+        """Resolve the day's status."""
+        if not punches:
+            from leaves.models import LeaveRequest
+            on_leave = LeaveRequest.objects.filter(
+                employee=employee,
+                status='APPROVED',
+                start_date__lte=day,
+                end_date__gte=day,
+            ).exists()
+            if on_leave:
+                return 'ON_LEAVE'
+            if is_weekend(day):
+                return 'WEEKEND'
+            return 'ABSENT'
+
+        if is_weekend(day):
+            return 'PRESENT'
+
+        half_day_minutes = getattr(settings, 'HALF_DAY_MAX_HOURS', 4) * 60
+        if net_minutes is not None and net_minutes <= half_day_minutes:
+            return 'HALF_DAY'
+        if daily.late_minutes:
+            return 'LATE'
+        return 'PRESENT'
 
 
 class DailyAttendance(models.Model):
@@ -167,6 +350,11 @@ class DailyAttendance(models.Model):
 
     def __str__(self):
         return f"{self.employee.user.get_full_name()} - {self.date}"
+
+    @property
+    def is_incomplete(self):
+        """Checked in but never checked out."""
+        return self.check_in is not None and self.check_out is None
 
 
 class Absence(models.Model):

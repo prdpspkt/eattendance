@@ -1,4 +1,6 @@
 from django.db import models
+from django.utils import timezone
+
 from core.models import Employee
 
 class EmployeeDevice(models.Model):
@@ -31,8 +33,34 @@ class Device(models.Model):
     location = models.CharField(max_length=100, blank=True, null=True, help_text="Physical location of device")
     is_active = models.BooleanField(default=True)
     last_sync = models.DateTimeField(blank=True, null=True)
-    last_sync_status = models.CharField(max_length=20, blank=True, null=True)
+    last_sync_status = models.CharField(max_length=200, blank=True, null=True)
     connection_timeout = models.IntegerField(default=5, help_text="Connection timeout in seconds")
+
+    # --- ADMS / WDMS push protocol -------------------------------------
+    serial_number = models.CharField(
+        max_length=64, unique=True, blank=True, null=True,
+        help_text="Device serial number (SN). Identifies the device when it pushes data to us.",
+    )
+    push_enabled = models.BooleanField(
+        default=False,
+        help_text="Set automatically the first time this device contacts the ADMS endpoint.",
+    )
+    last_seen = models.DateTimeField(
+        blank=True, null=True, help_text="Last contact from the device (any ADMS request)",
+    )
+    firmware_version = models.CharField(max_length=100, blank=True, null=True)
+    device_info = models.TextField(
+        blank=True, null=True, help_text="Raw INFO string last reported by the device",
+    )
+    attlog_stamp = models.CharField(
+        max_length=32, default='0',
+        help_text="Resume point for attendance log uploads (ADMS)",
+    )
+    operlog_stamp = models.CharField(
+        max_length=32, default='0',
+        help_text="Resume point for operation log uploads (ADMS)",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -44,6 +72,22 @@ class Device(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.ip_address})"
+
+    @property
+    def is_online(self):
+        """True when the device has checked in recently (push mode only)."""
+        from django.conf import settings as django_settings
+        from django.utils import timezone as django_timezone
+        if not self.last_seen:
+            return False
+        timeout = getattr(django_settings, 'ADMS_OFFLINE_AFTER_SECONDS', 180)
+        return (django_timezone.now() - self.last_seen).total_seconds() < timeout
+
+    def queue_command(self, command, created_by=None):
+        """Queue a command for the device to pick up on its next poll."""
+        return DeviceCommand.objects.create(
+            device=self, command=command, created_by=created_by
+        )
 
     def test_connection(self):
         """Test connection to the device using pyzk"""
@@ -67,14 +111,20 @@ class Device(models.Model):
             return False, str(e)
 
     def sync_attendance(self):
-        """Fetch attendance data from device"""
-        try:
-            from zk import ZK, const
-            from attendance.models import Attendance
-            from django.utils import timezone
-            import datetime
+        """Fetch attendance data from the device over the pull SDK (pyzk).
 
-            conn = None
+        Shares its ingestion path with the ADMS push protocol, so
+        de-duplication, unlinked enrolments and the roll-up into daily
+        summaries behave identically however a punch arrives.
+        """
+        from django.conf import settings as django_settings
+
+        from .ingest import process_touched_days, record_punches
+
+        conn = None
+        try:
+            from zk import ZK
+
             zk = ZK(
                 self.ip_address,
                 port=self.port,
@@ -84,76 +134,57 @@ class Device(models.Model):
 
             conn = zk.connect()
             conn.disable_device()
-
-            # Get attendance records
-            attendances = conn.get_attendance()
-
-            synced_count = 0
-            skipped_count = 0
-            for att in attendances:
-                # Convert device UID to employee
-                try:
-                    # Convert user_id to integer (handle bytes, str, int)
-                    if isinstance(att.user_id, bytes):
-                        # Handle byte strings like b'\x05'
-                        device_uid = int.from_bytes(att.user_id, byteorder='little', signed=False)
-                    elif isinstance(att.user_id, str):
-                        # Handle string representations
-                        device_uid = int(att.user_id)
-                    else:
-                        # Handle integers
-                        device_uid = int(att.user_id)
-
-                    # Find employee by device_uid and this device
-                    employee_device = EmployeeDevice.objects.filter(
-                        device=self,
-                        device_uid=device_uid
-                    ).select_related('employee').first()
-
-                    if not employee_device:
-                        skipped_count += 1
-                        continue
-
-                    employee = employee_device.employee
-
-                    # Check if attendance already exists
-                    existing_attendance = Attendance.objects.filter(
-                        employee=employee,
-                        device=self,
-                        timestamp=att.timestamp
-                    ).first()
-
-                    if not existing_attendance:
-                        # Create attendance record
-                        Attendance.objects.create(
-                            employee=employee,
-                            device=self,
-                            timestamp=att.timestamp,
-                            punch_type=att.punch,
-                            uid=att.uid
-                        )
-                        synced_count += 1
-                except Exception as e:
-                    # Log error but continue processing
-                    skipped_count += 1
-                    continue
-
+            device_attendances = conn.get_attendance()
             conn.enable_device()
             conn.disconnect()
+            conn = None
 
-            # Update last sync info
+            punches = []
+            for att in device_attendances:
+                timestamp = att.timestamp
+                if django_settings.USE_TZ and timezone.is_naive(timestamp):
+                    # Devices report their own local wall-clock time.
+                    timestamp = timezone.make_aware(
+                        timestamp, timezone.get_current_timezone()
+                    )
+                punches.append({
+                    'device_uid': att.user_id,
+                    'timestamp': timestamp,
+                    'punch_type': att.punch,
+                    'uid': att.uid,
+                })
+
+            counts, touched = record_punches(self, punches)
+
+            if counts['created'] and getattr(django_settings, 'ADMS_PROCESS_ON_PUSH', True):
+                process_touched_days(touched)
+
+            status_msg = f"Success - {counts['created']} records"
+            extras = []
+            if counts['duplicate']:
+                extras.append(f"{counts['duplicate']} already stored")
+            if counts['unlinked']:
+                extras.append(f"{counts['unlinked']} unlinked")
+            if counts['invalid']:
+                extras.append(f"{counts['invalid']} invalid")
+            if extras:
+                status_msg += f" ({', '.join(extras)})"
+
             self.last_sync = timezone.now()
-            status_msg = f"Success - {synced_count} records"
-            if skipped_count > 0:
-                status_msg += f" ({skipped_count} skipped)"
-            self.last_sync_status = status_msg
-            self.save()
+            self.last_sync_status = status_msg[:200]
+            self.save(update_fields=['last_sync', 'last_sync_status'])
 
             return True, status_msg
 
         except Exception as e:
-            self.last_sync_status = f"Error: {str(e)}"
-            self.save()
+            if conn is not None:
+                try:
+                    conn.enable_device()
+                    conn.disconnect()
+                except Exception:
+                    pass
+            self.last_sync_status = f"Error: {str(e)}"[:200]
+            self.save(update_fields=['last_sync_status'])
             return False, str(e)
 
     def sync_users(self):
@@ -323,6 +354,17 @@ class Device(models.Model):
             self.save()
             return False, error_msg
 
+    def push_user(self, employee_device, created_by=None):
+        """Queue a DATA UPDATE USER command that writes a user onto the device."""
+        name = employee_device.user_name or ''
+        if employee_device.employee:
+            name = employee_device.employee.user.get_full_name() or name
+        command = (
+            f"DATA UPDATE USER PIN={employee_device.device_uid}\t"
+            f"Name={name}\tPri=0\tPasswd=\tCard=\tGrp=1\tTZ=0000000000000000"
+        )
+        return self.queue_command(command, created_by=created_by)
+
     def get_device_info(self):
         """Get device information"""
         try:
@@ -346,3 +388,69 @@ class Device(models.Model):
             return True, info
         except Exception as e:
             return False, str(e)
+
+
+class DeviceCommand(models.Model):
+    """A command queued for a device to collect over the ADMS push protocol.
+
+    In push mode the server cannot reach the device: the device polls
+    ``/iclock/getrequest`` and we answer with whatever is pending. The device
+    then reports the outcome to ``/iclock/devicecmd``.
+    """
+    STATUS_PENDING = 'PENDING'
+    STATUS_SENT = 'SENT'
+    STATUS_DONE = 'DONE'
+    STATUS_FAILED = 'FAILED'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_SENT, 'Sent to device'),
+        (STATUS_DONE, 'Completed'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='commands')
+    command = models.TextField(help_text="Command body, e.g. 'CHECK' or 'DATA UPDATE USER PIN=1...'")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    return_code = models.IntegerField(
+        blank=True, null=True, help_text="Return value reported by the device (0 = success)",
+    )
+    response = models.CharField(max_length=200, blank=True, null=True)
+    created_by = models.ForeignKey(
+        'core.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='queued_device_commands',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(blank=True, null=True)
+    completed_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'device_commands'
+        verbose_name = 'Device Command'
+        verbose_name_plural = 'Device Commands'
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['device', 'status'])]
+
+    def __str__(self):
+        return f"{self.device.name}: {self.command[:40]} ({self.status})"
+
+    def as_wire_format(self):
+        """Render as the device expects it: ``C:<id>:<command>``."""
+        return f"C:{self.id}:{self.command}"
+
+    def mark_sent(self):
+        self.status = self.STATUS_SENT
+        self.sent_at = timezone.now()
+        self.save(update_fields=['status', 'sent_at'])
+
+    def mark_result(self, return_code, response=None):
+        try:
+            return_code = int(return_code)
+        except (TypeError, ValueError):
+            return_code = None
+        self.return_code = return_code
+        self.response = (response or '')[:200] or None
+        # ZKTeco devices report 0 (and some firmware 1) for success.
+        self.status = self.STATUS_DONE if return_code in (0, 1) else self.STATUS_FAILED
+        self.completed_at = timezone.now()
+        self.save(update_fields=['return_code', 'response', 'status', 'completed_at'])

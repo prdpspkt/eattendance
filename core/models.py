@@ -141,13 +141,28 @@ class Shift(models.Model):
     def __str__(self):
         return f"{self.name} ({self.start_time} - {self.end_time})"
 
-    def get_working_hours(self):
-        """Calculate total working hours excluding break"""
+    @property
+    def is_overnight(self):
+        """True when the shift ends on the next calendar day (e.g. 20:00-05:00)."""
+        return self.end_time <= self.start_time
+
+    def get_span_minutes(self):
+        """Clock-to-clock length of the shift in minutes, including the break."""
         from datetime import datetime, timedelta
-        start = datetime.combine(datetime.today(), self.start_time)
-        end = datetime.combine(datetime.today(), self.end_time)
-        total_minutes = (end - start).total_seconds() / 60
-        return (total_minutes - self.break_duration_minutes) / 60
+        today = datetime.today().date()
+        start = datetime.combine(today, self.start_time)
+        end = datetime.combine(today, self.end_time)
+        if self.is_overnight:
+            end += timedelta(days=1)
+        return (end - start).total_seconds() / 60
+
+    def get_working_hours(self):
+        """Scheduled working hours, excluding the unpaid break.
+
+        Handles overnight shifts (end time earlier than start time), which
+        previously produced a negative result.
+        """
+        return max(0.0, (self.get_span_minutes() - self.break_duration_minutes) / 60)
 
 
 class EmployeeShift(models.Model):
