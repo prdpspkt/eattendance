@@ -1,316 +1,241 @@
 {% extends 'base.html' %}
+{% load core_extras %}
 
-{% block title %}Today's Attendance Log - E-Attendance System{% endblock %}
+{% block title %}Today's Attendance - E-Attendance{% endblock %}
 
-{% block page-title %}Today's Attendance Log{% endblock %}
+{% block page-title %}Today's Attendance{% endblock %}
 
 {% block auth_content %}
-<style>
-    .stat-card-large {
-        border-radius: 10px;
-        padding: 20px;
-        text-align: center;
-        border: none;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        transition: transform 0.2s;
-    }
-    .stat-card-large:hover {
-        transform: translateY(-5px);
-    }
-    .stat-card-large h3 {
-        font-size: 2.5rem;
-        margin-bottom: 5px;
-    }
-    .stat-card-large.total {
-        border-left: 5px solid #6c757d;
-    }
-    .stat-card-large.present {
-        border-left: 5px solid #28a745;
-    }
-    .stat-card-large.absent {
-        border-left: 5px solid #dc3545;
-    }
-    .stat-card-large.late {
-        border-left: 5px solid #ffc107;
-    }
-    .stat-card-large.pending {
-        border-left: 5px solid #17a2b8;
-    }
-    .timeline {
-        position: relative;
-        padding-left: 30px;
-    }
-    .timeline-item {
-        position: relative;
-        padding-bottom: 20px;
-        border-left: 2px solid #dee2e6;
-        padding-left: 20px;
-    }
-    .timeline-item::before {
-        content: '';
-        position: absolute;
-        left: -6px;
-        top: 0;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: #007bff;
-    }
-    .timeline-item.check-in::before {
-        background: #28a745;
-    }
-    .timeline-item.check-out::before {
-        background: #dc3545;
-    }
-    .timeline-time {
-        font-size: 0.85rem;
-        color: #6c757d;
-        margin-bottom: 5px;
-    }
-    .device-badge {
-        font-size: 0.75rem;
-        padding: 3px 8px;
-        border-radius: 4px;
-        background: #e9ecef;
-    }
-</style>
+{# No inline <style> here any more. This page used to carry its own 70-line
+   block of Bootstrap 4 hex values - a blue card header, five differently
+   coloured left borders and a timeline - none of which followed the palette or
+   dark mode. Everything it needs now lives in app.css as .metric, .timeline
+   and .chip. #}
+<div class="page-header">
+    <div>
+        <h2 class="page-header__title">Today's attendance</h2>
+        <p class="page-header__subtitle">{{ today|date:"l, j F Y" }}</p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'devices:device_list' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-cpu" aria-hidden="true"></i> Devices
+        </a>
+        <a href="{% url 'attendance_calendar' %}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-calendar3" aria-hidden="true"></i> Calendar
+        </a>
+    </div>
+</div>
 
-<!-- Statistics Cards -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="bi bi-calendar-check"></i> {{ today|date:"l, d F Y" }}
-                    </h5>
-                    <span class="badge bg-light text-dark">Today's Overview</span>
-                </div>
+{# Five equal columns at desktop width. The old markup used col-lg-2-4, a class
+   Bootstrap does not define and nothing here declared, so the cards silently
+   fell back to half-width rows. #}
+<div class="row row-cols-2 row-cols-md-3 row-cols-lg-5 g-3 mb-4">
+    <div class="col">
+        <div class="metric">
+            <div>
+                <div class="metric__label">Total employees</div>
+                <div class="metric__value">{{ stats.total_employees }}</div>
             </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6 col-lg-2-4 mb-3">
-                        <div class="stat-card-large total">
-                            <h3 class="text-secondary">{{ stats.total_employees }}</h3>
-                            <p class="mb-0 text-muted">Total Employees</p>
-                        </div>
-                    </div>
-                    <div class="col-md-6 col-lg-2-4 mb-3">
-                        <div class="stat-card-large present">
-                            <h3 class="text-success">{{ stats.present }}</h3>
-                            <p class="mb-0 text-muted">Present</p>
-                        </div>
-                    </div>
-                    <div class="col-md-6 col-lg-2-4 mb-3">
-                        <div class="stat-card-large late">
-                            <h3 class="text-warning">{{ stats.late }}</h3>
-                            <p class="mb-0 text-muted">Late</p>
-                        </div>
-                    </div>
-                    <div class="col-md-6 col-lg-2-4 mb-3">
-                        <div class="stat-card-large absent">
-                            <h3 class="text-danger">{{ stats.absent }}</h3>
-                            <p class="mb-0 text-muted">Absent</p>
-                        </div>
-                    </div>
-                    <div class="col-md-6 col-lg-2-4 mb-3">
-                        <div class="stat-card-large pending">
-                            <h3 class="text-info">{{ stats.pending }}</h3>
-                            <p class="mb-0 text-muted">Pending</p>
-                        </div>
-                    </div>
-                </div>
+            <div class="metric__icon metric__icon--neutral" aria-hidden="true"><i class="bi bi-people"></i></div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="metric">
+            <div>
+                <div class="metric__label">Present</div>
+                <div class="metric__value">{{ stats.present }}</div>
             </div>
+            <div class="metric__icon metric__icon--success" aria-hidden="true"><i class="bi bi-check-circle"></i></div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="metric">
+            <div>
+                <div class="metric__label">Late</div>
+                <div class="metric__value">{{ stats.late }}</div>
+            </div>
+            <div class="metric__icon metric__icon--warning" aria-hidden="true"><i class="bi bi-clock"></i></div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="metric">
+            <div>
+                <div class="metric__label">Absent</div>
+                <div class="metric__value">{{ stats.absent }}</div>
+            </div>
+            <div class="metric__icon metric__icon--danger" aria-hidden="true"><i class="bi bi-x-circle"></i></div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="metric">
+            <div>
+                <div class="metric__label">Pending</div>
+                <div class="metric__value">{{ stats.pending }}</div>
+            </div>
+            <div class="metric__icon metric__icon--info" aria-hidden="true"><i class="bi bi-hourglass-split"></i></div>
         </div>
     </div>
 </div>
 
-<div class="row">
-    <!-- Left Column: Recent Activity -->
-    <div class="col-lg-7 mb-4">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">
-                        <i class="bi bi-clock-history"></i> Recent Activity (Last 20 Punches)
-                    </h6>
-                    <span class="badge bg-primary">{{ recent_activity.count }}</span>
-                </div>
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                <span class="card-title">Recent activity</span>
+                <span class="ms-auto chip chip--neutral">Last {{ recent_activity.count }} punches</span>
             </div>
             <div class="card-body">
                 {% if recent_activity %}
                     <div class="timeline">
                         {% for attendance in recent_activity %}
-                        <div class="timeline-item {% if attendance.punch_type == 0 or attendance.punch_type == 2 %}check-in{% else %}check-out{% endif %}">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div class="flex-grow-1">
-                                    <div class="timeline-time">
-                                        <i class="bi bi-clock"></i> {{ attendance.timestamp|date:"H:i:s" }}
-                                    </div>
-                                    <h6 class="mb-1">
-                                        {% if attendance.employee.user.profile_picture %}
-                                            <img src="{{ attendance.employee.user.profile_picture.url }}"
-                                                 class="rounded-circle" width="30" height="30" style="margin-right: 8px;">
-                                        {% else %}
-                                            <span class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center"
-                                                  style="width: 30px; height: 30px; font-size: 12px; margin-right: 8px;">
-                                                {{ attendance.employee.user.get_full_name|first|upper }}
-                                            </span>
-                                        {% endif %}
-                                        <strong>{{ attendance.employee.user.get_full_name }}</strong>
-                                        <span class="badge bg-{% if attendance.punch_type == 0 or attendance.punch_type == 2 %}success{% else %}danger{% endif %} ms-2">
-                                            {% if attendance.punch_type == 0 %}Check In
-                                            {% elif attendance.punch_type == 1 %}Check Out
-                                            {% elif attendance.punch_type == 2 %}Overtime In
-                                            {% elif attendance.punch_type == 3 %}Overtime Out
-                                            {% endif %}
-                                        </span>
-                                    </h6>
-                                    <div>
-                                        <span class="device-badge">
-                                            <i class="bi bi-cpu"></i> {{ attendance.device.name }}
-                                        </span>
-                                        {% if attendance.device.location %}
-                                            <span class="device-badge ms-1">
-                                                <i class="bi bi-geo-alt"></i> {{ attendance.device.location }}
-                                            </span>
-                                        {% endif %}
-                                        <small class="text-muted ms-2">
-                                            UID: {{ attendance.uid }}
-                                        </small>
-                                    </div>
-                                </div>
+                        <div class="timeline__item {% if attendance.punch_type|punch_is_in %}timeline__item--in{% else %}timeline__item--out{% endif %}">
+                            <div class="timeline__time">
+                                <i class="bi bi-clock" aria-hidden="true"></i>{{ attendance.timestamp|date:"H:i:s" }}
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap mt-1">
+                                {% if attendance.employee.user.profile_picture %}
+                                    <img src="{{ attendance.employee.user.profile_picture.url }}"
+                                         class="avatar avatar--sm" alt="">
+                                {% else %}
+                                    <span class="avatar avatar--sm" aria-hidden="true">{{ attendance.employee.user|initials }}</span>
+                                {% endif %}
+                                <strong>{{ attendance.employee.user.get_full_name }}</strong>
+                                <span class="chip {% if attendance.punch_type|punch_is_in %}chip--success{% else %}chip--danger{% endif %}">
+                                    {{ attendance.get_punch_type_display }}
+                                </span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap mt-2">
+                                <span class="chip chip--neutral">
+                                    <i class="bi bi-cpu" aria-hidden="true"></i>{{ attendance.device.name }}
+                                </span>
+                                {% if attendance.device.location %}
+                                    <span class="chip chip--neutral">
+                                        <i class="bi bi-geo-alt" aria-hidden="true"></i>{{ attendance.device.location }}
+                                    </span>
+                                {% endif %}
+                                <small class="text-muted mono">UID {{ attendance.uid }}</small>
                             </div>
                         </div>
                         {% endfor %}
                     </div>
                 {% else %}
-                    <div class="text-center py-5">
-                        <i class="bi bi-clock-history" style="font-size: 4rem; color: #dee2e6;"></i>
-                        <p class="text-muted mt-3">No activity recorded yet today.</p>
+                    <div class="empty-state">
+                        <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-clock-history"></i></div>
+                        <p class="empty-state__title">No activity yet today</p>
+                        <p class="empty-state__text mb-0">
+                            Punches appear here within seconds of someone scanning at a terminal.
+                        </p>
                     </div>
                 {% endif %}
             </div>
         </div>
     </div>
 
-    <!-- Right Column: Device Summary & Daily Attendance -->
-    <div class="col-lg-5 mb-4">
-        <!-- Device Summary -->
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-white">
-                <h6 class="mb-0">
-                    <i class="bi bi-cpu"></i> Activity by Device
-                </h6>
+    <div class="col-lg-5">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-cpu" aria-hidden="true"></i>
+                <span class="card-title">Activity by device</span>
             </div>
-            <div class="card-body">
-                {% if device_stats %}
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Device</th>
-                                    <th class="text-center">Punches</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for device in device_stats %}
-                                <tr>
-                                    <td>
-                                        <strong>{{ device.device__name }}</strong>
-                                        {% if device.device__location %}
-                                            <br><small class="text-muted">{{ device.device__location }}</small>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-primary">{{ device.count }}</span>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% else %}
-                    <p class="text-muted mb-0">No device activity recorded yet.</p>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Daily Attendance Summary -->
-        <div class="card shadow-sm">
-            <div class="card-header bg-white">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">
-                        <i class="bi bi-list-check"></i> Daily Attendance Summary
-                    </h6>
-                    <span class="badge bg-info">{{ daily_attendances.count }}</span>
+            {% if device_stats %}
+            <div class="card-body table-card p-0">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Device</th>
+                                <th scope="col" class="text-end">Punches</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for device in device_stats %}
+                            <tr>
+                                <td>
+                                    <strong>{{ device.device__name }}</strong>
+                                    {% if device.device__location %}
+                                        <div class="text-muted small">{{ device.device__location }}</div>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end tabular">{{ device.count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
+            {% else %}
             <div class="card-body">
-                {% if daily_attendances %}
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Employee</th>
-                                    <th>Status</th>
-                                    <th>Check In</th>
-                                    <th>Working Hrs</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for daily in daily_attendances %}
-                                <tr>
-                                    <td>
+                <div class="empty-state py-4">
+                    <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-cpu"></i></div>
+                    <p class="empty-state__title">No device activity</p>
+                    <p class="empty-state__text mb-0">No terminal has reported a punch today.</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-list-check" aria-hidden="true"></i>
+                <span class="card-title">Daily summary</span>
+                <span class="ms-auto chip chip--neutral">{{ daily_attendances.count }}</span>
+            </div>
+            {% if daily_attendances %}
+            <div class="card-body table-card p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th scope="col">Employee</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">In</th>
+                                <th scope="col" class="text-end">Hours</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for daily in daily_attendances %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
                                         {% if daily.employee.user.profile_picture %}
                                             <img src="{{ daily.employee.user.profile_picture.url }}"
-                                                 class="rounded-circle" width="25" height="25" style="margin-right: 5px;">
-                                        {% endif %}
-                                        <strong>{{ daily.employee.user.get_full_name }}</strong>
-                                        <br>
-                                        <small class="text-muted">{{ daily.employee.employee_id }}</small>
-                                    </td>
-                                    <td>
-                                        {% if daily.status == 'PRESENT' %}
-                                            <span class="badge bg-success">Present</span>
-                                        {% elif daily.status == 'LATE' %}
-                                            <span class="badge bg-warning">Late</span>
-                                        {% elif daily.status == 'ABSENT' %}
-                                            <span class="badge bg-danger">Absent</span>
-                                        {% elif daily.status == 'HALF_DAY' %}
-                                            <span class="badge bg-info">Half Day</span>
-                                        {% elif daily.status == 'ON_LEAVE' %}
-                                            <span class="badge bg-primary">On Leave</span>
+                                                 class="avatar avatar--sm" alt="">
                                         {% else %}
-                                            <span class="badge bg-secondary">{{ daily.status }}</span>
+                                            <span class="avatar avatar--sm" aria-hidden="true">{{ daily.employee.user|initials }}</span>
                                         {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if daily.check_in %}
-                                            {{ daily.check_in|time:"H:i" }}
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if daily.working_hours %}
-                                            {{ daily.working_hours }}h
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% else %}
-                    <div class="text-center py-4">
-                        <i class="bi bi-list-check" style="font-size: 3rem; color: #dee2e6;"></i>
-                        <p class="text-muted mt-3">No daily attendance records yet.</p>
-                    </div>
-                {% endif %}
+                                        <div>
+                                            <strong>{{ daily.employee.user.get_full_name }}</strong>
+                                            <div class="text-muted small mono">{{ daily.employee.employee_id }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                {# The chip carries a text label as well as a tint, so status is
+                                   never conveyed by colour alone. #}
+                                <td>{% status_badge daily.status daily.get_status_display %}</td>
+                                <td class="tabular">
+                                    {% if daily.check_in %}{{ daily.check_in|time:"H:i" }}{% else %}<span class="text-muted">&mdash;</span>{% endif %}
+                                </td>
+                                <td class="text-end tabular">
+                                    {% if daily.working_hours %}{{ daily.working_hours|floatformat:1 }}{% else %}<span class="text-muted">&mdash;</span>{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
+            {% else %}
+            <div class="card-body">
+                <div class="empty-state py-4">
+                    <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-list-check"></i></div>
+                    <p class="empty-state__title">No summaries yet</p>
+                    <p class="empty-state__text mb-0">
+                        Daily records are rolled up as punches arrive.
+                    </p>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

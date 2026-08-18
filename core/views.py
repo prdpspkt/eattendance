@@ -757,3 +757,15 @@ def healthz(request):
     form unless the load generator carries a session cookie.
     """
     return HttpResponse('ok', content_type='text/plain')
+
+
+def home(request):
+    """Public landing page, or the dashboard for anyone already signed in.
+
+    The site root previously 404'd, then redirected unconditionally to the
+    dashboard. Neither is right for a URL that prospective buyers reach first:
+    an evaluator needs the pitch, and a logged-in employee needs their day.
+    """
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    return render(request, 'core/home.html')

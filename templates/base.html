@@ -31,7 +31,7 @@
 
         <nav class="app-sidebar" id="appSidebar" aria-label="Main navigation">
             <a href="{% url 'dashboard' %}" class="app-brand">
-                <span class="app-brand__mark" aria-hidden="true"><i class="bi bi-fingerprint"></i></span>
+                <span class="app-brand__mark" aria-hidden="true"><i class="bi bi-fingerprint" aria-hidden="true"></i></span>
                 <span>
                     <span class="app-brand__name d-block">E-Attendance</span>
                     <span class="app-brand__meta">Biometric time &amp; leave</span>
@@ -139,7 +139,7 @@
                             type="button" data-bs-toggle="dropdown" aria-expanded="false">
                         {% if user.profile_picture %}
                             <img src="{{ user.profile_picture.url }}" class="avatar avatar--sm"
-                                 alt="" width="28" height="28">
+                                 alt="Your profile photo" width="28" height="28">
                         {% else %}
                             <span class="avatar avatar--sm" aria-hidden="true">{{ user|initials }}</span>
                         {% endif %}
@@ -150,13 +150,13 @@
                         <i class="bi bi-three-dots" aria-hidden="true"></i>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end w-100">
-                        <li><a class="dropdown-item" href="{% url 'profile' %}"><i class="bi bi-person me-2"></i>My profile</a></li>
-                        <li><a class="dropdown-item" href="{% url 'change_password' %}"><i class="bi bi-key me-2"></i>Change password</a></li>
+                        <li><a class="dropdown-item" href="{% url 'profile' %}"><i class="bi bi-person me-2" aria-hidden="true"></i>My profile</a></li>
+                        <li><a class="dropdown-item" href="{% url 'change_password' %}"><i class="bi bi-key me-2" aria-hidden="true"></i>Change password</a></li>
                         {% if user.is_superuser %}
-                            <li><a class="dropdown-item" href="/admin/"><i class="bi bi-gear me-2"></i>Django admin</a></li>
+                            <li><a class="dropdown-item" href="/admin/"><i class="bi bi-gear me-2" aria-hidden="true"></i>Django admin</a></li>
                         {% endif %}
                         <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item text-danger" href="{% url 'logout' %}"><i class="bi bi-box-arrow-right me-2"></i>Sign out</a></li>
+                        <li><a class="dropdown-item text-danger" href="{% url 'logout' %}"><i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>Sign out</a></li>
                     </ul>
                 </div>
             </div>

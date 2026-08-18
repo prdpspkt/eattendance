@@ -12,7 +12,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Work Shifts</h5>
                     <a href="{% url 'shift_create' %}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Add New Shift
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i> Add New Shift
                     </a>
                 </div>
             </div>
@@ -40,7 +40,7 @@
                                 </td>
                                 <td>
                                     <span class="badge bg-info">
-                                        <i class="bi bi-clock"></i> {{ shift.start_time }} - {{ shift.end_time }}
+                                        <i class="bi bi-clock" aria-hidden="true"></i> {{ shift.start_time }} - {{ shift.end_time }}
                                     </span>
                                     <br>
                                     <small class="text-muted">{{ shift.get_working_hours|floatformat:1 }}h work/day</small>
@@ -60,13 +60,14 @@
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a href="{% url 'shift_edit' shift.id %}" class="btn btn-outline-primary">
-                                            <i class="bi bi-pencil"></i>
+                                        <a href="{% url 'shift_edit' shift.id %}" class="btn btn-outline-primary" aria-label="Edit shift {{ shift.name }}">
+                                            <i class="bi bi-pencil" aria-hidden="true"></i>
                                         </a>
                                         <button type="button" class="btn btn-outline-danger"
                                                 data-bs-toggle="modal"
-                                                data-bs-target="#deleteModal{{ shift.id }}">
-                                            <i class="bi bi-trash"></i>
+                                                data-bs-target="#deleteModal{{ shift.id }}"
+                                                aria-label="Delete shift {{ shift.name }}">
+                                            <i class="bi bi-trash" aria-hidden="true"></i>
                                         </button>
                                     </div>
                                 </td>
@@ -77,11 +78,11 @@
                 </div>
                 {% else %}
                 <div class="text-center py-5">
-                    <i class="bi bi-clock-history" style="font-size: 4rem; color: #dee2e6;"></i>
+                    <i class="bi icon-jumbo bi-clock-history" aria-hidden="true"></i>
                     <p class="text-muted mt-3">No shifts found.</p>
                     <p class="text-muted small">Create work shifts to define employee schedules.</p>
                     <a href="{% url 'shift_create' %}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Create First Shift
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i> Create First Shift
                     </a>
                 </div>
                 {% endif %}
@@ -102,7 +103,7 @@
             <div class="modal-body">
                 <p>Are you sure you want to delete the shift <strong>"{{ shift.name }}"</strong>?</p>
                 <p class="text-muted">
-                    <i class="bi bi-exclamation-triangle"></i>
+                    <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
                     {% if shift_stats.shift.id > 0 %}
                     <strong>Warning:</strong> This shift is currently assigned to {{ shift_stats.shift.id }} employee(s).
                     {% else %}
@@ -115,7 +116,7 @@
                 <form method="post" action="{% url 'shift_delete' shift.id %}" style="display: inline;">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-trash"></i> Delete
+                        <i class="bi bi-trash" aria-hidden="true"></i> Delete
                     </button>
                 </form>
             </div>

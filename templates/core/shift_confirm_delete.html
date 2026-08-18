@@ -10,7 +10,7 @@
         <div class="card shadow-sm">
             <div class="card-header bg-danger text-white">
                 <h6 class="mb-0">
-                    <i class="bi bi-exclamation-triangle"></i>
+                    <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
                     Confirm Delete Shift
                 </h6>
             </div>
@@ -18,7 +18,7 @@
                 <p>Are you sure you want to delete the shift <strong>"{{ shift.name }}"</strong>?</p>
 
                 <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
                     <strong>Warning:</strong> This action cannot be undone. Shift assignments for this
                     shift will also be removed, and attendance already processed against it will keep
                     its recorded hours but lose the shift reference.
@@ -56,10 +56,10 @@
                     {% csrf_token %}
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="{% url 'shift_management' %}" class="btn btn-secondary">
-                            <i class="bi bi-x-circle"></i> Cancel
+                            <i class="bi bi-x-circle" aria-hidden="true"></i> Cancel
                         </a>
                         <button type="submit" class="btn btn-danger">
-                            <i class="bi bi-trash"></i> Delete Shift
+                            <i class="bi bi-trash" aria-hidden="true"></i> Delete Shift
                         </button>
                     </div>
                 </form>

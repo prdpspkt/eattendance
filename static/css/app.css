@@ -552,6 +552,81 @@ small, .small { font-size: .8125rem; }
 .list-group-item { background: var(--app-surface); border-color: var(--app-border); color: var(--app-ink); }
 
 /* --------------------------------------------------------------------------
+   8b. Icon rhythm
+   Bootstrap Icons are inline elements with no built-in spacing, so markup like
+   `<i class="bi bi-cpu"></i> {{ device.name }}` renders the glyph hard against
+   the label - the single most common visual defect across these templates, and
+   one that no amount of per-template fixing keeps fixed.
+   Solved once, here, for any icon that sits beside text.
+   `:where()` keeps specificity at zero so a component can still override it,
+   and `:only-child` exempts icon-only buttons, which must not gain a phantom
+   gap. The negative vertical-align seats the glyph on the text baseline
+   instead of letting it ride high.
+   -------------------------------------------------------------------------- */
+.bi { vertical-align: -.125em; }
+
+:where(.btn, .badge, .chip, .alert, .card-header, .card-title, .nav-link,
+       .dropdown-item, .form-label, .form-text, .page-header__title,
+       h1, h2, h3, h4, h5, h6, p, li, a, td, th, dd, dt, label, small, strong,
+       legend, summary, figcaption) > .bi {
+  margin-inline-end: .4em;
+}
+
+/* Icon-only controls must not carry that trailing gap, or they render visibly
+   off-centre. They cannot be selected structurally: `:only-child` counts
+   elements and ignores text nodes, so it matches `<i></i> Save` just as
+   readily as a bare `<i></i>`. What genuinely distinguishes them is that an
+   icon-only control has no text to name it and therefore must carry its own
+   accessible name - so aria-label is both the honest signal and one that
+   fails loudly if someone adds an unlabelled icon button. */
+:where(.btn, .icon-btn, a, button)[aria-label] > .bi:only-child,
+:where(.btn, .icon-btn, a, button)[aria-labelledby] > .bi:only-child {
+  margin-inline-end: 0;
+}
+
+/* Icons that trail their label rather than lead it.
+   This CANNOT be detected in CSS: `:last-child` counts elements only, so an
+   icon followed by a bare text node - `<i></i> Save`, the overwhelmingly
+   common case here - still matches it. A `:last-child` rule therefore strips
+   the gap from precisely the icons that need it. Opt in explicitly instead. */
+.bi--trailing {
+  margin-inline-end: 0 !important;
+  margin-inline-start: .4em;
+}
+
+/* --------------------------------------------------------------------------
+   8c. Timeline
+   Was inline <style> on the Today's Attendance page, with hardcoded Bootstrap 4
+   hex values that ignored both the palette and dark mode.
+   -------------------------------------------------------------------------- */
+.timeline { position: relative; }
+.timeline__item {
+  position: relative;
+  padding: 0 0 var(--space-2xl) var(--space-2xl);
+  border-left: 2px solid var(--app-border);
+}
+.timeline__item:last-child { padding-bottom: 0; border-left-color: transparent; }
+.timeline__item::before {
+  content: "";
+  position: absolute; left: -5px; top: 4px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--app-neutral-dot);
+  box-shadow: 0 0 0 3px var(--app-surface);
+}
+.timeline__item--in::before  { background: var(--app-success-dot); }
+.timeline__item--out::before { background: var(--app-danger-dot); }
+.timeline__time {
+  font-size: .75rem; font-weight: 600; letter-spacing: .03em;
+  color: var(--app-ink-subtle);
+  font-family: var(--font-mono);
+}
+
+/* Large decorative glyph for "nothing here yet" panels. Replaces the inline
+   `style="font-size: 4rem; color: #dee2e6"` repeated across a dozen templates,
+   which was invisible in dark mode. */
+.icon-jumbo { font-size: 2.5rem; line-height: 1; color: var(--app-ink-subtle); opacity: .55; }
+
+/* --------------------------------------------------------------------------
    9. Motion & print
    -------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {

@@ -81,7 +81,7 @@
         </div>
         {% else %}
         <div class="empty-state py-4">
-            <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-fingerprint"></i></div>
+            <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-fingerprint" aria-hidden="true"></i></div>
             <p class="empty-state__title">Nothing recorded yet today</p>
             <p class="empty-state__text mb-0">
                 Your first punch of the day appears here once it reaches the server.
@@ -99,7 +99,7 @@
                 <div class="metric__value">{{ monthly_stats.present_days }}</div>
                 <div class="metric__hint">of {{ monthly_stats.total_days }} recorded</div>
             </div>
-            <div class="metric__icon metric__icon--success" aria-hidden="true"><i class="bi bi-check2-circle"></i></div>
+            <div class="metric__icon metric__icon--success" aria-hidden="true"><i class="bi bi-check2-circle" aria-hidden="true"></i></div>
         </div>
     </div>
     <div class="col-6 col-lg-3">
@@ -109,7 +109,7 @@
                 <div class="metric__value">{{ monthly_stats.late_days }}</div>
                 <div class="metric__hint">this month</div>
             </div>
-            <div class="metric__icon metric__icon--warning" aria-hidden="true"><i class="bi bi-alarm"></i></div>
+            <div class="metric__icon metric__icon--warning" aria-hidden="true"><i class="bi bi-alarm" aria-hidden="true"></i></div>
         </div>
     </div>
     <div class="col-6 col-lg-3">
@@ -119,7 +119,7 @@
                 <div class="metric__value">{{ monthly_stats.total_overtime|default:0|floatformat:"-1" }}<span class="metric__unit">h</span></div>
                 <div class="metric__hint">this month</div>
             </div>
-            <div class="metric__icon metric__icon--info" aria-hidden="true"><i class="bi bi-plus-slash-minus"></i></div>
+            <div class="metric__icon metric__icon--info" aria-hidden="true"><i class="bi bi-plus-slash-minus" aria-hidden="true"></i></div>
         </div>
     </div>
     <div class="col-6 col-lg-3">
@@ -129,7 +129,7 @@
                 <div class="metric__value">{{ monthly_stats.total_days }}</div>
                 <div class="metric__hint">this month</div>
             </div>
-            <div class="metric__icon metric__icon--neutral" aria-hidden="true"><i class="bi bi-calendar3"></i></div>
+            <div class="metric__icon metric__icon--neutral" aria-hidden="true"><i class="bi bi-calendar3" aria-hidden="true"></i></div>
         </div>
     </div>
 </div>
@@ -172,7 +172,7 @@
                 </div>
                 {% else %}
                 <div class="empty-state py-4">
-                    <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-wallet2"></i></div>
+                    <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-wallet2" aria-hidden="true"></i></div>
                     <p class="empty-state__title">No leave balance set up</p>
                     <p class="empty-state__text">
                         An administrator needs to allocate your yearly leave entitlement
@@ -218,7 +218,7 @@
                 </ul>
                 {% else %}
                 <div class="empty-state py-4">
-                    <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-inbox"></i></div>
+                    <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-inbox" aria-hidden="true"></i></div>
                     <p class="empty-state__title">Nothing pending</p>
                     <p class="empty-state__text mb-0">Leave and travel requests you submit will show here until approved.</p>
                 </div>
@@ -267,7 +267,7 @@
         </div>
         {% else %}
         <div class="empty-state">
-            <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-calendar-week"></i></div>
+            <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-calendar-week" aria-hidden="true"></i></div>
             <p class="empty-state__title">No recent attendance</p>
             <p class="empty-state__text mb-0">
                 Records appear once punches have been collected and processed into daily summaries.

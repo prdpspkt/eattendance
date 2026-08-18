@@ -26,7 +26,7 @@
                 <div class="metric__label">Days present</div>
                 <div class="metric__value">{{ summary.present_days }}</div>
             </div>
-            <div class="metric__icon metric__icon--success" aria-hidden="true"><i class="bi bi-check2-circle"></i></div>
+            <div class="metric__icon metric__icon--success" aria-hidden="true"><i class="bi bi-check2-circle" aria-hidden="true"></i></div>
         </div>
     </div>
     <div class="col-6 col-lg-3">
@@ -35,7 +35,7 @@
                 <div class="metric__label">Late arrivals</div>
                 <div class="metric__value">{{ summary.late_days }}</div>
             </div>
-            <div class="metric__icon metric__icon--warning" aria-hidden="true"><i class="bi bi-alarm"></i></div>
+            <div class="metric__icon metric__icon--warning" aria-hidden="true"><i class="bi bi-alarm" aria-hidden="true"></i></div>
         </div>
     </div>
     <div class="col-6 col-lg-3">
@@ -44,7 +44,7 @@
                 <div class="metric__label">Hours worked</div>
                 <div class="metric__value">{{ summary.total_hours|default:0|floatformat:"-1" }}<span class="metric__unit">h</span></div>
             </div>
-            <div class="metric__icon metric__icon--info" aria-hidden="true"><i class="bi bi-hourglass-split"></i></div>
+            <div class="metric__icon metric__icon--info" aria-hidden="true"><i class="bi bi-hourglass-split" aria-hidden="true"></i></div>
         </div>
     </div>
     <div class="col-6 col-lg-3">
@@ -53,7 +53,7 @@
                 <div class="metric__label">Overtime</div>
                 <div class="metric__value">{{ summary.total_overtime|default:0|floatformat:"-1" }}<span class="metric__unit">h</span></div>
             </div>
-            <div class="metric__icon metric__icon--neutral" aria-hidden="true"><i class="bi bi-plus-slash-minus"></i></div>
+            <div class="metric__icon metric__icon--neutral" aria-hidden="true"><i class="bi bi-plus-slash-minus" aria-hidden="true"></i></div>
         </div>
     </div>
 </div>
@@ -137,7 +137,7 @@
                             {% status_badge attendance.status attendance.get_status_display %}
                             {% if attendance.notes %}
                                 <i class="bi bi-info-circle text-muted ms-1" title="{{ attendance.notes }}"
-                                   aria-label="Note: {{ attendance.notes }}"></i>
+                                   aria-label="Note: {{ attendance.notes }}" aria-hidden="true"></i>
                             {% endif %}
                         </td>
                     </tr>
@@ -147,7 +147,7 @@
         </div>
         {% else %}
         <div class="empty-state">
-            <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-calendar-x"></i></div>
+            <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-calendar-x" aria-hidden="true"></i></div>
             <p class="empty-state__title">No attendance records found</p>
             <p class="empty-state__text">
                 {% if selected_start_date or selected_end_date %}

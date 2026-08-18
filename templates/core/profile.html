@@ -35,18 +35,18 @@
 
         <div class="card">
             <div class="card-header">
-                <i class="bi bi-gear"></i> Quick Actions
+                <i class="bi bi-gear" aria-hidden="true"></i> Quick Actions
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
                     <a href="{% url 'change_password' %}" class="btn btn-outline-primary">
-                        <i class="bi bi-key"></i> Change Password
+                        <i class="bi bi-key" aria-hidden="true"></i> Change Password
                     </a>
                     <a href="{% url 'my_attendance' %}" class="btn btn-outline-secondary">
-                        <i class="bi bi-calendar-check"></i> My Attendance
+                        <i class="bi bi-calendar-check" aria-hidden="true"></i> My Attendance
                     </a>
                     <a href="{% url 'my_leaves' %}" class="btn btn-outline-secondary">
-                        <i class="bi bi-calendar-event"></i> Leave Balance
+                        <i class="bi bi-calendar-event" aria-hidden="true"></i> Leave Balance
                     </a>
                 </div>
             </div>
@@ -56,7 +56,7 @@
     <div class="col-md-8">
         <div class="card">
             <div class="card-header">
-                <i class="bi bi-person"></i> Personal Information
+                <i class="bi bi-person" aria-hidden="true"></i> Personal Information
             </div>
             <div class="card-body">
                 <form method="post" enctype="multipart/form-data">
@@ -132,10 +132,10 @@
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-save"></i> Save Changes
+                            <i class="bi bi-save" aria-hidden="true"></i> Save Changes
                         </button>
                         <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
-                            <i class="bi bi-x-circle"></i> Cancel
+                            <i class="bi bi-x-circle" aria-hidden="true"></i> Cancel
                         </a>
                     </div>
                 </form>
@@ -144,7 +144,7 @@
 
         <div class="card mt-4">
             <div class="card-header">
-                <i class="bi bi-info-circle"></i> Employment Information
+                <i class="bi bi-info-circle" aria-hidden="true"></i> Employment Information
             </div>
             <div class="card-body">
                 <div class="row">

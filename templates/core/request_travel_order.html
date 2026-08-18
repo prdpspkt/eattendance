@@ -16,7 +16,7 @@
         <div class="card shadow-sm">
             <div class="card-header bg-primary text-white">
                 <h6 class="mb-0">
-                    <i class="bi bi-airplane"></i>
+                    <i class="bi bi-airplane" aria-hidden="true"></i>
                     {% if viewing_other %}
                         Create Travel Order for {{ employee.user.get_full_name }}
                     {% else %}
@@ -80,7 +80,7 @@
                     </div>
 
                     <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i>
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
                         <strong>Note:</strong> Travel orders will be reviewed and approved by the administration.
                         You will receive a notification once your request is processed.
                     </div>
@@ -88,15 +88,15 @@
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         {% if viewing_other %}
                         <a href="{% url 'my_travel_orders' %}?employee_id={{ employee.id }}" class="btn btn-secondary">
-                            <i class="bi bi-x-circle"></i> Cancel
+                            <i class="bi bi-x-circle" aria-hidden="true"></i> Cancel
                         </a>
                         {% else %}
                         <a href="{% url 'my_travel_orders' %}" class="btn btn-secondary">
-                            <i class="bi bi-x-circle"></i> Cancel
+                            <i class="bi bi-x-circle" aria-hidden="true"></i> Cancel
                         </a>
                         {% endif %}
                         <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-check"></i> Submit Travel Order
+                            <i class="bi bi-check" aria-hidden="true"></i> Submit Travel Order
                         </button>
                     </div>
                 </form>

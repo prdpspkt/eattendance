@@ -1,0 +1,345 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}E-Attendance &mdash; Biometric attendance, leave and travel in one place{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/landing.css' %}">
+<meta name="description" content="Self-hosted biometric attendance for ZKTeco terminals. Real-time push sync over the internet, shift rules, overtime, leave and travel approvals, and reporting.">
+{% endblock %}
+
+{# Every claim on this page is something the software in this repository
+   actually does. There are no invented customer counts, logos or testimonials:
+   a buyer who checks and finds the proof was fabricated has learned something
+   worse about the product than any missing badge would have told them. #}
+{% block content %}
+<div class="lp">
+    <a class="skip-link" href="#main">Skip to main content</a>
+
+    <header class="lp-nav">
+        <div class="lp__container lp-nav__inner">
+            <a href="{% url 'home' %}" class="app-brand" style="padding: 0;">
+                <span class="app-brand__mark" aria-hidden="true"><i class="bi bi-fingerprint"></i></span>
+                <span>
+                    <span class="app-brand__name d-block">E-Attendance</span>
+                    <span class="app-brand__meta">Biometric time &amp; leave</span>
+                </span>
+            </a>
+
+            <nav class="lp-nav__links" aria-label="Page sections">
+                <a class="lp-nav__link" href="#features">Features</a>
+                <a class="lp-nav__link" href="#how">How it works</a>
+                <a class="lp-nav__link" href="#deployment">Deployment</a>
+            </nav>
+
+            <a href="{% url 'login' %}" class="lp-btn lp-btn--primary" style="margin-left: auto;">
+                Sign in <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </a>
+        </div>
+    </header>
+
+    <main id="main">
+        <!-- Hero -->
+        <section class="lp-hero">
+            <div class="lp__container lp-hero__grid">
+                <div class="lp-reveal">
+                    <span class="lp-eyebrow">
+                        <i class="bi bi-broadcast-pin" aria-hidden="true"></i>
+                        Real-time push sync for ZKTeco terminals
+                    </span>
+
+                    <h1 class="lp-hero__title">
+                        Attendance that arrives <em>the moment</em> someone scans.
+                    </h1>
+
+                    <p class="lp-hero__lede">
+                        Your terminals push every punch straight to your own server &mdash; across
+                        branches, behind NAT, with no VPN and no inbound firewall rules. Shifts,
+                        overtime, leave and travel approvals are handled in the same place, and the
+                        data never leaves your infrastructure.
+                    </p>
+
+                    <div class="lp-cta-row">
+                        <a href="{% url 'login' %}" class="lp-btn lp-btn--primary">
+                            Sign in to your workspace <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                        </a>
+                        <a href="#how" class="lp-btn lp-btn--ghost">
+                            <i class="bi bi-play-circle" aria-hidden="true"></i> See how it works
+                        </a>
+                    </div>
+
+                    <p class="lp-hero__note">
+                        <span><i class="bi bi-shield-check" aria-hidden="true"></i>Self-hosted</span>
+                        <span><i class="bi bi-hdd-network" aria-hidden="true"></i>Works behind NAT</span>
+                        <span><i class="bi bi-cpu" aria-hidden="true"></i>Runs on modest hardware</span>
+                    </p>
+                </div>
+
+                <!-- Interface preview, built from the same tokens as the product -->
+                <div class="lp-reveal" aria-hidden="true">
+                    <div class="lp-preview">
+                        <div class="lp-preview__bar">
+                            <span class="lp-preview__dot"></span>
+                            <span class="lp-preview__dot"></span>
+                            <span class="lp-preview__dot"></span>
+                            <span class="lp-preview__title">Today&rsquo;s attendance</span>
+                        </div>
+                        <div class="lp-preview__body">
+                            <div class="lp-preview__metrics">
+                                <div class="lp-preview__metric">
+                                    <div class="lp-preview__metric-label">Present</div>
+                                    <div class="lp-preview__metric-value">128</div>
+                                </div>
+                                <div class="lp-preview__metric">
+                                    <div class="lp-preview__metric-label">Late</div>
+                                    <div class="lp-preview__metric-value">6</div>
+                                </div>
+                                <div class="lp-preview__metric">
+                                    <div class="lp-preview__metric-label">On leave</div>
+                                    <div class="lp-preview__metric-value">4</div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="lp-preview__row">
+                                    <span class="lp-preview__avatar">RM</span>
+                                    <strong>Rita Maharjan</strong>
+                                    <span class="chip chip--success ms-auto">Check in</span>
+                                    <span class="mono text-muted">09:02</span>
+                                </div>
+                                <div class="lp-preview__row">
+                                    <span class="lp-preview__avatar">AK</span>
+                                    <strong>Anil KC</strong>
+                                    <span class="chip chip--warning ms-auto">Late</span>
+                                    <span class="mono text-muted">09:41</span>
+                                </div>
+                                <div class="lp-preview__row">
+                                    <span class="lp-preview__avatar">SG</span>
+                                    <strong>Sunita Gurung</strong>
+                                    <span class="chip chip--success ms-auto">Check in</span>
+                                    <span class="mono text-muted">08:55</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Proof: capabilities, stated as facts -->
+        <section class="lp-section lp-section--tint">
+            <div class="lp__container">
+                <ul class="lp-proof list-unstyled mb-0">
+                    <li class="lp-proof__item">
+                        <div class="lp-proof__value">Seconds</div>
+                        <div class="lp-proof__label">From scan to dashboard, not a 5-minute poll</div>
+                    </li>
+                    <li class="lp-proof__item">
+                        <div class="lp-proof__value">2</div>
+                        <div class="lp-proof__label">Transports &mdash; push over the internet, or pull on the LAN</div>
+                    </li>
+                    <li class="lp-proof__item">
+                        <div class="lp-proof__value">0</div>
+                        <div class="lp-proof__label">Inbound firewall rules needed at branch sites</div>
+                    </li>
+                    <li class="lp-proof__item">
+                        <div class="lp-proof__value">100%</div>
+                        <div class="lp-proof__label">Self-hosted &mdash; your server, your database</div>
+                    </li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section class="lp-section" id="features">
+            <div class="lp__container">
+                <div class="lp-section__head">
+                    <h2 class="lp-section__title">Everything the front desk and HR both need</h2>
+                    <p class="lp-section__text">
+                        One system for the hardware, the rules and the paperwork &mdash; so nobody
+                        reconciles a spreadsheet against a terminal export at month end.
+                    </p>
+                </div>
+
+                <div class="lp-features">
+                    <article class="lp-feature">
+                        <div class="lp-feature__icon" aria-hidden="true"><i class="bi bi-broadcast-pin"></i></div>
+                        <h3 class="lp-feature__title">Real-time push sync</h3>
+                        <p class="lp-feature__text">
+                            Terminals open outbound connections to your server and deliver punches as
+                            they happen. Remote branches work with no VPN, no port forwarding and no
+                            static IP.
+                        </p>
+                    </article>
+
+                    <article class="lp-feature">
+                        <div class="lp-feature__icon" aria-hidden="true"><i class="bi bi-hdd-stack"></i></div>
+                        <h3 class="lp-feature__title">Many devices, one roster</h3>
+                        <p class="lp-feature__text">
+                            Register terminals by serial number, watch them come online, and pull a
+                            device&rsquo;s user list or replay its full attendance log on demand.
+                        </p>
+                    </article>
+
+                    <article class="lp-feature">
+                        <div class="lp-feature__icon" aria-hidden="true"><i class="bi bi-clock-history"></i></div>
+                        <h3 class="lp-feature__title">Shifts and overtime rules</h3>
+                        <p class="lp-feature__text">
+                            Grace periods, early exits, break deductions, half-days and overtime
+                            rounding &mdash; applied consistently, so the numbers do not depend on
+                            who compiled them.
+                        </p>
+                    </article>
+
+                    <article class="lp-feature">
+                        <div class="lp-feature__icon" aria-hidden="true"><i class="bi bi-calendar-check"></i></div>
+                        <h3 class="lp-feature__title">Leave with balances</h3>
+                        <p class="lp-feature__text">
+                            Employees request from their own portal, admins approve in one queue, and
+                            balances update on approval instead of in a parallel spreadsheet.
+                        </p>
+                    </article>
+
+                    <article class="lp-feature">
+                        <div class="lp-feature__icon" aria-hidden="true"><i class="bi bi-airplane"></i></div>
+                        <h3 class="lp-feature__title">Travel orders</h3>
+                        <p class="lp-feature__text">
+                            Itineraries and expense claims follow the same approval path, and days
+                            spent travelling stop being counted as absences.
+                        </p>
+                    </article>
+
+                    <article class="lp-feature">
+                        <div class="lp-feature__icon" aria-hidden="true"><i class="bi bi-file-earmark-spreadsheet"></i></div>
+                        <h3 class="lp-feature__title">Reports that reconcile</h3>
+                        <p class="lp-feature__text">
+                            Monthly attendance, overtime and contact sheets export to Excel and PDF,
+                            drawn from the same records the dashboard shows.
+                        </p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- How it works -->
+        <section class="lp-section lp-section--tint" id="how">
+            <div class="lp__container">
+                <div class="lp-section__head">
+                    <h2 class="lp-section__title">Three steps to a live terminal</h2>
+                    <p class="lp-section__text">
+                        No agent to install at the branch, and no software on the terminal beyond the
+                        firmware it shipped with.
+                    </p>
+                </div>
+
+                <div class="lp-steps">
+                    <div class="lp-step">
+                        <h3 class="lp-step__title">Point the terminal at your server</h3>
+                        <p class="lp-step__text">
+                            On the device: Comm. &rarr; Ethernet &rarr; Cloud Server / ADMS. Enter your
+                            hostname and port, then reboot it.
+                        </p>
+                    </div>
+                    <div class="lp-step">
+                        <h3 class="lp-step__title">Approve it</h3>
+                        <p class="lp-step__text">
+                            The terminal calls home within seconds and appears in your device list.
+                            Give it a name, mark it active, and it starts delivering &mdash; nothing
+                            recorded while it waited is lost.
+                        </p>
+                    </div>
+                    <div class="lp-step">
+                        <h3 class="lp-step__title">Scans become records</h3>
+                        <p class="lp-step__text">
+                            Punches are de-duplicated, matched to employees and rolled into daily
+                            summaries against each person&rsquo;s shift, automatically.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Push vs pull -->
+        <section class="lp-section" id="deployment">
+            <div class="lp__container">
+                <div class="lp-section__head">
+                    <h2 class="lp-section__title">Built for sites you cannot reach</h2>
+                    <p class="lp-section__text">
+                        Most attendance software polls each terminal over the local network. That
+                        works until the terminal is in another building.
+                    </p>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="lp-compare">
+                        <caption class="visually-hidden">
+                            Comparison of push and pull transports across five criteria
+                        </caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">&nbsp;</th>
+                                <th scope="col">Push (this system)</th>
+                                <th scope="col">Traditional polling</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th scope="row">Remote branch over the internet</th>
+                                <td><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Works as-is</td>
+                                <td class="is-no"><i class="bi bi-dash-circle" aria-hidden="true"></i>Needs VPN or port forwarding</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Inbound firewall rules</th>
+                                <td><i class="bi bi-check-circle-fill" aria-hidden="true"></i>None</td>
+                                <td class="is-no"><i class="bi bi-dash-circle" aria-hidden="true"></i>Required per site</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Time from scan to record</th>
+                                <td><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Seconds</td>
+                                <td class="is-no"><i class="bi bi-dash-circle" aria-hidden="true"></i>Up to the poll interval</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Terminal loses connectivity</th>
+                                <td><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Holds records, retries, backfills</td>
+                                <td class="is-no"><i class="bi bi-dash-circle" aria-hidden="true"></i>Gap until the next successful poll</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Where your data lives</th>
+                                <td><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Your own server</td>
+                                <td class="is-no"><i class="bi bi-dash-circle" aria-hidden="true"></i>Often a vendor cloud</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Closing CTA -->
+        <section class="lp-section">
+            <div class="lp__container">
+                <div class="lp-final">
+                    <h2 class="lp-final__title">Ready when your terminals are</h2>
+                    <p class="lp-final__text">
+                        Sign in to your workspace, or point a terminal at this server and watch it
+                        appear in the device list.
+                    </p>
+                    <div class="lp-cta-row justify-content-center">
+                        <a href="{% url 'login' %}" class="lp-btn lp-btn--primary">
+                            Sign in <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                        </a>
+                        <a href="#features" class="lp-btn lp-btn--ghost">Review the features</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="lp-footer">
+        <div class="lp__container lp-footer__inner">
+            <span><i class="bi bi-fingerprint" aria-hidden="true"></i>E-Attendance</span>
+            <span>&copy; {% now "Y" %}</span>
+            <a href="{% url 'login' %}" style="margin-left: auto;">Sign in</a>
+        </div>
+    </footer>
+</div>
+{% endblock %}

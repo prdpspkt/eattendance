@@ -13,7 +13,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Leave Types</h5>
                     <a href="{% url 'leave_type_create' %}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Add New Leave Type
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i> Add New Leave Type
                     </a>
                 </div>
             </div>
@@ -47,16 +47,16 @@
                                 <td>{{ leave_type.days_per_year }} days</td>
                                 <td>
                                     {% if leave_type.is_paid %}
-                                        <i class="bi bi-check-circle text-success"></i> Yes
+                                        <i class="bi bi-check-circle text-success" aria-hidden="true"></i> Yes
                                     {% else %}
-                                        <i class="bi bi-x-circle text-danger"></i> No
+                                        <i class="bi bi-x-circle text-danger" aria-hidden="true"></i> No
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if leave_type.requires_approval %}
-                                        <i class="bi bi-check-circle text-success"></i> Yes
+                                        <i class="bi bi-check-circle text-success" aria-hidden="true"></i> Yes
                                     {% else %}
-                                        <i class="bi bi-x-circle text-danger"></i> No
+                                        <i class="bi bi-x-circle text-danger" aria-hidden="true"></i> No
                                     {% endif %}
                                 </td>
                                 <td>
@@ -68,13 +68,14 @@
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a href="{% url 'leave_type_edit' leave_type.id %}" class="btn btn-outline-primary">
-                                            <i class="bi bi-pencil"></i>
+                                        <a href="{% url 'leave_type_edit' leave_type.id %}" class="btn btn-outline-primary" aria-label="Edit leave type {{ leave_type.name }}">
+                                            <i class="bi bi-pencil" aria-hidden="true"></i>
                                         </a>
                                         <button type="button" class="btn btn-outline-danger"
                                                 data-bs-toggle="modal"
-                                                data-bs-target="#deleteModal{{ leave_type.id }}">
-                                            <i class="bi bi-trash"></i>
+                                                data-bs-target="#deleteModal{{ leave_type.id }}"
+                                                aria-label="Delete leave type {{ leave_type.name }}">
+                                            <i class="bi bi-trash" aria-hidden="true"></i>
                                         </button>
                                     </div>
                                 </td>
@@ -85,11 +86,11 @@
                 </div>
                 {% else %}
                 <div class="text-center py-5">
-                    <i class="bi bi-calendar-x" style="font-size: 4rem; color: #dee2e6;"></i>
+                    <i class="bi icon-jumbo bi-calendar-x" aria-hidden="true"></i>
                     <p class="text-muted mt-3">No leave types found.</p>
                     <p class="text-muted small">Create leave types to manage employee leave policies.</p>
                     <a href="{% url 'leave_type_create' %}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Create First Leave Type
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i> Create First Leave Type
                     </a>
                 </div>
                 {% endif %}
@@ -110,7 +111,7 @@
             <div class="modal-body">
                 <p>Are you sure you want to delete the leave type <strong>"{{ leave_type.name }}"</strong>?</p>
                 <p class="text-muted">
-                    <i class="bi bi-exclamation-triangle"></i>
+                    <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
                     {% if leave_type_stats|get_item:leave_type.id > 0 %}
                     <strong>Warning:</strong> This leave type is currently assigned to {{ leave_type_stats|get_item:leave_type.id }} employee(s).
                     {% else %}
@@ -123,7 +124,7 @@
                 <form method="post" action="{% url 'leave_type_delete' leave_type.id %}" style="display: inline;">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-trash"></i> Delete
+                        <i class="bi bi-trash" aria-hidden="true"></i> Delete
                     </button>
                 </form>
             </div>

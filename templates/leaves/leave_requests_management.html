@@ -33,10 +33,10 @@
                     </div>
                     <div class="col-md-4 d-flex align-items-end">
                         <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-funnel"></i> Filter
+                            <i class="bi bi-funnel" aria-hidden="true"></i> Filter
                         </button>
                         <a href="{% url 'leave_requests_management' %}" class="btn btn-outline-secondary ms-2">
-                            <i class="bi bi-x-circle"></i> Clear
+                            <i class="bi bi-x-circle" aria-hidden="true"></i> Clear
                         </a>
                     </div>
                 </form>
@@ -114,25 +114,28 @@
                                         <button type="button" class="btn btn-outline-primary"
                                                 data-bs-toggle="modal"
                                                 data-bs-target="#detailModal{{ request.id }}">
-                                            <i class="bi bi-eye"></i> View
+                                            <i class="bi bi-eye" aria-hidden="true"></i> View
                                         </button>
                                         {% if request.status == 'PENDING' %}
                                         <button type="button" class="btn btn-outline-success"
                                                 data-bs-toggle="modal"
-                                                data-bs-target="#approveModal{{ request.id }}">
-                                            <i class="bi bi-check"></i>
+                                                data-bs-target="#approveModal{{ request.id }}"
+                                                aria-label="Approve leave request from {{ request.employee.user.get_full_name }}">
+                                            <i class="bi bi-check" aria-hidden="true"></i>
                                         </button>
                                         <button type="button" class="btn btn-outline-danger"
                                                 data-bs-toggle="modal"
-                                                data-bs-target="#rejectModal{{ request.id }}">
-                                            <i class="bi bi-x"></i>
+                                                data-bs-target="#rejectModal{{ request.id }}"
+                                                aria-label="Reject leave request from {{ request.employee.user.get_full_name }}">
+                                            <i class="bi bi-x" aria-hidden="true"></i>
                                         </button>
                                         {% endif %}
                                         {% if request.status != 'APPROVED' %}
                                         <button type="button" class="btn btn-outline-danger"
                                                 data-bs-toggle="modal"
-                                                data-bs-target="#deleteModal{{ request.id }}">
-                                            <i class="bi bi-trash"></i>
+                                                data-bs-target="#deleteModal{{ request.id }}"
+                                                aria-label="Delete leave request from {{ request.employee.user.get_full_name }}">
+                                            <i class="bi bi-trash" aria-hidden="true"></i>
                                         </button>
                                         {% endif %}
                                     </div>
@@ -144,11 +147,11 @@
                 </div>
                 {% else %}
                 <div class="text-center py-5">
-                    <i class="bi bi-inbox" style="font-size: 4rem; color: #dee2e6;"></i>
+                    <i class="bi icon-jumbo bi-inbox" aria-hidden="true"></i>
                     <p class="text-muted mt-3">No leave requests found.</p>
                     {% if status_filter or employee_filter %}
                     <a href="{% url 'leave_requests_management' %}" class="btn btn-primary">
-                        <i class="bi bi-funnel"></i> Clear Filters
+                        <i class="bi bi-funnel" aria-hidden="true"></i> Clear Filters
                     </a>
                     {% endif %}
                 </div>
@@ -165,7 +168,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="bi bi-calendar-check"></i>
+                    <i class="bi bi-calendar-check" aria-hidden="true"></i>
                     Leave Request Details
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -234,7 +237,7 @@
                 <hr>
                 <h6>Attachment</h6>
                 <a href="{{ request.attachment.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                    <i class="bi bi-paperclip"></i> View Attachment
+                    <i class="bi bi-paperclip" aria-hidden="true"></i> View Attachment
                 </a>
                 {% endif %}
 
@@ -300,7 +303,7 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-success">
-                        <i class="bi bi-check"></i> Approve
+                        <i class="bi bi-check" aria-hidden="true"></i> Approve
                     </button>
                 </div>
             </form>
@@ -340,7 +343,7 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-x"></i> Reject
+                        <i class="bi bi-x" aria-hidden="true"></i> Reject
                     </button>
                 </div>
             </form>
@@ -356,7 +359,7 @@
         <div class="modal-content">
             <div class="modal-header bg-warning text-white">
                 <h5 class="modal-title">
-                    <i class="bi bi-exclamation-triangle"></i>
+                    <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
                     Delete Leave Request
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -365,7 +368,7 @@
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
                         <strong>Warning:</strong> This action cannot be undone.
                     </div>
                     <p>Are you sure you want to delete this leave request?</p>
@@ -383,7 +386,7 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-trash"></i> Delete
+                        <i class="bi bi-trash" aria-hidden="true"></i> Delete
                     </button>
                 </div>
             </form>

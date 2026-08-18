@@ -9,7 +9,7 @@
     {% if viewing_other %}
     <div class="col-12">
         <a href="{% url 'my_leaves' %}?employee_id={{ employee.id }}" class="btn btn-outline-secondary mb-3">
-            <i class="bi bi-arrow-left"></i> Back to Leave Requests
+            <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to Leave Requests
         </a>
     </div>
     {% endif %}
@@ -17,7 +17,7 @@
         <div class="card shadow-sm">
             <div class="card-header {% if viewing_other %}bg-warning{% else %}bg-primary{% endif %} text-white">
                 <h6 class="mb-0">
-                    <i class="bi bi-calendar-plus"></i>
+                    <i class="bi bi-calendar-plus" aria-hidden="true"></i>
                     {% if viewing_other %}Create Leave for {{ employee.user.get_full_name }}{% else %}Submit Leave Request{% endif %}
                 </h6>
             </div>
@@ -62,7 +62,7 @@
                     </div>
 
                     <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i>
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
                         <strong>Note:</strong>
                         {% if viewing_other %}
                         You are creating a leave request for {{ employee.user.get_full_name }}. The request will be sent for approval.
@@ -73,15 +73,15 @@
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <button type="submit" class="btn {% if viewing_other %}btn-warning{% else %}btn-primary{% endif %}">
-                            <i class="bi bi-send"></i> {% if viewing_other %}Create Leave{% else %}Submit Request{% endif %}
+                            <i class="bi bi-send" aria-hidden="true"></i> {% if viewing_other %}Create Leave{% else %}Submit Request{% endif %}
                         </button>
                         {% if viewing_other %}
                         <a href="{% url 'my_leaves' %}?employee_id={{ employee.id }}" class="btn btn-outline-secondary">
-                            <i class="bi bi-x-circle"></i> Cancel
+                            <i class="bi bi-x-circle" aria-hidden="true"></i> Cancel
                         </a>
                         {% else %}
                         <a href="{% url 'my_leaves' %}" class="btn btn-outline-secondary">
-                            <i class="bi bi-x-circle"></i> Cancel
+                            <i class="bi bi-x-circle" aria-hidden="true"></i> Cancel
                         </a>
                         {% endif %}
                     </div>
@@ -91,7 +91,7 @@
 
         <div class="card mt-4">
             <div class="card-header">
-                <i class="bi bi-lightning"></i> Leave Policy Information
+                <i class="bi bi-lightning" aria-hidden="true"></i> Leave Policy Information
             </div>
             <div class="card-body">
                 <h6>Important Points:</h6>

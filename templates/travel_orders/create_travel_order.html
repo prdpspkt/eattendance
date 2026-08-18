@@ -11,11 +11,11 @@
     <div class="col-12">
         {% if viewing_other %}
         <a href="{% url 'my_travel_orders' %}?employee_id={{ employee.id }}" class="btn btn-outline-secondary mb-3">
-            <i class="bi bi-arrow-left"></i> Back to Travel Orders
+            <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to Travel Orders
         </a>
         {% else %}
         <a href="{% url 'my_travel_orders' %}" class="btn btn-outline-secondary mb-3">
-            <i class="bi bi-arrow-left"></i> Back to Travel Orders
+            <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to Travel Orders
         </a>
         {% endif %}
     </div>
@@ -26,7 +26,7 @@
         <div class="card shadow-sm">
             <div class="card-header bg-info text-white">
                 <h6 class="mb-0">
-                    <i class="bi bi-airplane"></i>
+                    <i class="bi bi-airplane" aria-hidden="true"></i>
                     {% if viewing_other %}Create Travel Order for {{ employee.user.get_full_name }}{% else %}Create New Travel Order{% endif %}
                 </h6>
             </div>
@@ -126,15 +126,15 @@
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <button type="submit" class="btn btn-info">
-                            <i class="bi bi-save"></i> Create Travel Order
+                            <i class="bi bi-save" aria-hidden="true"></i> Create Travel Order
                         </button>
                         {% if viewing_other %}
                         <a href="{% url 'my_travel_orders' %}?employee_id={{ employee.id }}" class="btn btn-outline-secondary">
-                            <i class="bi bi-x-circle"></i> Cancel
+                            <i class="bi bi-x-circle" aria-hidden="true"></i> Cancel
                         </a>
                         {% else %}
                         <a href="{% url 'my_travel_orders' %}" class="btn btn-outline-secondary">
-                            <i class="bi bi-x-circle"></i> Cancel
+                            <i class="bi bi-x-circle" aria-hidden="true"></i> Cancel
                         </a>
                         {% endif %}
                     </div>
@@ -144,7 +144,7 @@
 
         <div class="card mt-4">
             <div class="card-header">
-                <i class="bi bi-info-circle"></i> Travel Order Information
+                <i class="bi bi-info-circle" aria-hidden="true"></i> Travel Order Information
             </div>
             <div class="card-body">
                 <h6>Important Notes:</h6>

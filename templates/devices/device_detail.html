@@ -8,7 +8,7 @@
 <div class="row">
     <div class="col-12">
         <a href="{% url 'devices:device_list' %}" class="btn btn-outline-secondary mb-3">
-            <i class="bi bi-arrow-left"></i> Back to Devices
+            <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to Devices
         </a>
     </div>
 </div>
@@ -17,7 +17,7 @@
     <div class="col-md-4">
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-primary text-white">
-                <h6 class="mb-0"><i class="bi bi-info-circle"></i> Device Information</h6>
+                <h6 class="mb-0"><i class="bi bi-info-circle" aria-hidden="true"></i> Device Information</h6>
             </div>
             <div class="card-body">
                 <table class="table table-borderless table-sm">
@@ -63,32 +63,32 @@
 
         <div class="card shadow-sm">
             <div class="card-header bg-success text-white">
-                <h6 class="mb-0"><i class="bi bi-gear"></i> Actions</h6>
+                <h6 class="mb-0"><i class="bi bi-gear" aria-hidden="true"></i> Actions</h6>
             </div>
             <div class="card-body">
                 <form method="post" action="{% url 'devices:test_connection' device.id %}" class="mb-3">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-outline-primary w-100">
-                        <i class="bi bi-wifi"></i> Test Connection
+                        <i class="bi bi-wifi" aria-hidden="true"></i> Test Connection
                     </button>
                 </form>
 
                 <form method="post" action="{% url 'devices:sync_users' device.id %}" class="mb-3">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-outline-success w-100">
-                        <i class="bi bi-person-plus"></i> Sync Users
+                        <i class="bi bi-person-plus" aria-hidden="true"></i> Sync Users
                     </button>
                 </form>
 
                 <form method="post" action="{% url 'devices:sync_attendance' device.id %}" class="mb-3">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-outline-info w-100">
-                        <i class="bi bi-calendar-check"></i> Sync Attendance
+                        <i class="bi bi-calendar-check" aria-hidden="true"></i> Sync Attendance
                     </button>
                 </form>
 
                 <a href="{% url 'devices:todays_attendance' %}" class="btn btn-outline-warning w-100">
-                    <i class="bi bi-clock-history"></i> Today's Attendance Log
+                    <i class="bi bi-clock-history" aria-hidden="true"></i> Today's Attendance Log
                 </a>
             </div>
         </div>
@@ -98,7 +98,7 @@
         <div class="card shadow-sm">
             <div class="card-header bg-white">
                 <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0"><i class="bi bi-people"></i> Enrolled Users</h6>
+                    <h6 class="mb-0"><i class="bi bi-people" aria-hidden="true"></i> Enrolled Users</h6>
                     <span class="badge bg-primary">{{ employee_devices.count }}</span>
                 </div>
             </div>
@@ -124,7 +124,7 @@
                                     {% if ed.employee %}
                                     {% if ed.employee.user.profile_picture %}
                                         <img src="{{ ed.employee.user.profile_picture.url }}"
-                                             class="rounded-circle" width="30" height="30">
+                                             class="rounded-circle" width="30" height="30" alt="">
                                     {% else %}
                                         <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
                                              style="width: 30px; height: 30px; font-size: 12px;">
@@ -145,12 +145,12 @@
                 </div>
                 {% else %}
                 <div class="text-center py-4">
-                    <i class="bi bi-person-x" style="font-size: 3rem; color: #dee2e6;"></i>
+                    <i class="bi icon-jumbo bi-person-x" aria-hidden="true"></i>
                     <p class="text-muted mt-3">No users enrolled on this device yet.</p>
                     <form method="post" action="{% url 'devices:sync_users' device.id %}">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-success">
-                            <i class="bi bi-person-plus"></i> Sync Users from Device
+                            <i class="bi bi-person-plus" aria-hidden="true"></i> Sync Users from Device
                         </button>
                     </form>
                 </div>

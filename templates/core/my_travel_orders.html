@@ -18,11 +18,11 @@
             <div>
                 {% if viewing_other %}
                 <a href="{% url 'my_travel_orders' %}?employee_id={{ employee.id }}&create=true" class="btn btn-primary">
-                    <i class="bi bi-plus-circle"></i> Add Travel Order
+                    <i class="bi bi-plus-circle" aria-hidden="true"></i> Add Travel Order
                 </a>
                 {% else %}
                 <a href="{% url 'request_travel_order' %}" class="btn btn-primary">
-                    <i class="bi bi-plus-circle"></i> Add Travel Order
+                    <i class="bi bi-plus-circle" aria-hidden="true"></i> Add Travel Order
                 </a>
                 {% endif %}
             </div>
@@ -90,7 +90,7 @@
                                 <td>
                                     <button class="btn btn-sm btn-outline-primary" type="button"
                                             data-bs-toggle="modal" data-bs-target="#orderModal{{ order.id }}">
-                                        <i class="bi bi-eye"></i> View
+                                        <i class="bi bi-eye" aria-hidden="true"></i> View
                                     </button>
                                 </td>
                             </tr>
@@ -100,7 +100,7 @@
                 </div>
                 {% else %}
                 <div class="text-center py-5">
-                    <i class="bi bi-geo-alt" style="font-size: 4rem; color: #dee2e6;"></i>
+                    <i class="bi icon-jumbo bi-geo-alt" aria-hidden="true"></i>
                     <p class="text-muted mt-3">No travel orders found.</p>
                     <p class="text-muted small">
                         Travel orders can be created for official business trips and field visits.

@@ -177,3 +177,21 @@ def minutes_as_duration(value):
     if whole_hours:
         return f'{whole_hours}h {minutes:02d}m'
     return f'{minutes}m'
+
+
+@register.filter
+def punch_is_in(punch_type):
+    """True when a raw device punch code means "arriving".
+
+    The device reports a numeric code and the meanings are not contiguous:
+    check-in is 0 and overtime-in is 4, while 2 and 3 are the break codes.
+    Templates previously inlined `punch_type == 0 or punch_type == 2`, which
+    labelled every break-out as a check-in. Read the codes from the one place
+    that defines them instead.
+    """
+    from attendance.models import CHECK_IN_CODES
+
+    try:
+        return int(punch_type) in CHECK_IN_CODES
+    except (TypeError, ValueError):
+        return False

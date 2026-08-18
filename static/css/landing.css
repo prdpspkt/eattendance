@@ -1,0 +1,330 @@
+/* ==========================================================================
+   E-Attendance marketing home page
+   --------------------------------------------------------------------------
+   Loaded only on the public home page. Every colour, radius and shadow is a
+   token from app.css, so the landing page and the product cannot drift apart -
+   a prospect sees the same navy, the same amber accent and the same type scale
+   before and after signing in.
+
+   Pattern: "Trust & Authority + Conversion" - hero stating the mission, proof,
+   solution overview, one clear CTA path. Accent colour is reserved for calls to
+   action so it keeps meaning something.
+   ========================================================================== */
+
+.lp {
+  --lp-max: 1140px;
+  color: var(--app-ink);
+}
+
+.lp__container {
+  width: 100%;
+  max-width: var(--lp-max);
+  margin-inline: auto;
+  padding-inline: var(--space-2xl);
+}
+
+/* --------------------------------------------------------------------------
+   Top bar
+   -------------------------------------------------------------------------- */
+.lp-nav {
+  position: sticky; top: 0; z-index: 20;
+  background: color-mix(in srgb, var(--app-surface) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--app-border);
+}
+.lp-nav__inner {
+  display: flex; align-items: center; gap: var(--space-xl);
+  min-height: 64px;
+}
+.lp-nav__links { display: flex; gap: var(--space-xl); margin-left: auto; }
+.lp-nav__link {
+  color: var(--app-ink-muted); text-decoration: none;
+  font-size: .875rem; font-weight: 500;
+  padding: var(--space-md) 0;
+}
+.lp-nav__link:hover { color: var(--app-primary); }
+@media (max-width: 767.98px) {
+  .lp-nav__links { display: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Hero
+   -------------------------------------------------------------------------- */
+.lp-hero {
+  position: relative;
+  padding: clamp(48px, 8vw, 96px) 0;
+  overflow: hidden;
+}
+/* Two soft colour fields rather than a hard gradient bar: keeps the surface
+   calm enough to read a paragraph against. */
+.lp-hero::before {
+  content: "";
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(60ch 40ch at 12% -10%, color-mix(in srgb, var(--app-primary) 14%, transparent), transparent 70%),
+    radial-gradient(50ch 36ch at 92% 8%, color-mix(in srgb, var(--app-secondary) 12%, transparent), transparent 70%);
+  pointer-events: none;
+}
+.lp-hero__grid {
+  position: relative;
+  display: grid; gap: clamp(32px, 5vw, 64px);
+  grid-template-columns: 1fr;
+  align-items: center;
+}
+@media (min-width: 992px) {
+  .lp-hero__grid { grid-template-columns: 1.05fr .95fr; }
+}
+
+.lp-eyebrow {
+  display: inline-flex; align-items: center; gap: var(--space-md);
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--app-primary-soft);
+  color: var(--app-info-ink);
+  border: 1px solid color-mix(in srgb, var(--app-primary) 22%, transparent);
+  font-size: .75rem; font-weight: 600; letter-spacing: .02em;
+  margin-bottom: var(--space-xl);
+}
+
+.lp-hero__title {
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -.02em;
+  margin: 0 0 var(--space-xl);
+}
+.lp-hero__title em {
+  font-style: normal;
+  color: var(--app-primary);
+}
+.lp-hero__lede {
+  font-size: clamp(1rem, 1.6vw, 1.125rem);
+  line-height: 1.6;
+  color: var(--app-ink-muted);
+  max-width: 56ch;
+  margin: 0 0 var(--space-2xl);
+}
+
+.lp-cta-row { display: flex; flex-wrap: wrap; gap: var(--space-lg); }
+/* 48px tall: comfortably above the 44px minimum touch target. */
+.lp-btn {
+  display: inline-flex; align-items: center; gap: var(--space-md);
+  min-height: 48px;
+  padding: 0 var(--space-2xl);
+  border-radius: var(--radius-md);
+  font-weight: 600; font-size: .9375rem;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: background var(--transition), border-color var(--transition), transform var(--transition);
+}
+.lp-btn--primary { background: var(--app-primary); color: #fff; }
+.lp-btn--primary:hover { background: var(--app-primary-hover); color: #fff; transform: translateY(-1px); }
+.lp-btn--ghost {
+  background: var(--app-surface);
+  color: var(--app-ink);
+  border-color: var(--app-border-strong);
+}
+.lp-btn--ghost:hover { border-color: var(--app-primary); color: var(--app-primary); }
+
+.lp-hero__note {
+  margin-top: var(--space-xl);
+  font-size: .8125rem; color: var(--app-ink-subtle);
+  display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------------------------
+   Product preview - a real interface built from tokens, not a screenshot that
+   goes stale the next time the dashboard changes.
+   -------------------------------------------------------------------------- */
+.lp-preview {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+.lp-preview__bar {
+  display: flex; align-items: center; gap: var(--space-md);
+  padding: var(--space-lg) var(--space-xl);
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface-2);
+}
+.lp-preview__dot { width: 9px; height: 9px; border-radius: 50%; background: var(--app-border-strong); }
+.lp-preview__title { font-size: .75rem; color: var(--app-ink-subtle); margin-left: var(--space-md); }
+.lp-preview__body { padding: var(--space-xl); display: grid; gap: var(--space-lg); }
+.lp-preview__metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-lg); }
+.lp-preview__metric {
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+}
+.lp-preview__metric-label {
+  font-size: .625rem; font-weight: 600; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--app-ink-subtle);
+}
+.lp-preview__metric-value { font-size: 1.25rem; font-weight: 700; margin-top: 2px; }
+.lp-preview__row {
+  display: flex; align-items: center; gap: var(--space-lg);
+  padding: var(--space-lg) 0;
+  border-top: 1px solid var(--app-border);
+  font-size: .8125rem;
+}
+.lp-preview__avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--app-primary-soft); color: var(--app-info-ink);
+  display: grid; place-items: center;
+  font-size: .6875rem; font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Sections
+   -------------------------------------------------------------------------- */
+.lp-section { padding: clamp(48px, 7vw, 88px) 0; }
+.lp-section--tint { background: var(--app-surface-2); border-block: 1px solid var(--app-border); }
+
+.lp-section__head { max-width: 62ch; margin-bottom: var(--space-3xl); }
+.lp-section__title {
+  font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 700;
+  letter-spacing: -.015em; margin: 0 0 var(--space-lg);
+}
+.lp-section__text { color: var(--app-ink-muted); margin: 0; line-height: 1.65; }
+
+/* Proof strip: capability facts, stated plainly. */
+.lp-proof {
+  display: grid; gap: var(--space-xl);
+  grid-template-columns: repeat(2, 1fr);
+}
+@media (min-width: 768px) { .lp-proof { grid-template-columns: repeat(4, 1fr); } }
+.lp-proof__item { text-align: center; }
+.lp-proof__value {
+  font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 700;
+  color: var(--app-primary); line-height: 1.1;
+}
+.lp-proof__label { font-size: .8125rem; color: var(--app-ink-subtle); margin-top: var(--space-md); }
+
+/* Feature grid */
+.lp-features { display: grid; gap: var(--space-xl); grid-template-columns: 1fr; }
+@media (min-width: 640px) { .lp-features { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 992px) { .lp-features { grid-template-columns: repeat(3, 1fr); } }
+
+.lp-feature {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2xl);
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+.lp-feature:hover {
+  border-color: var(--app-border-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+.lp-feature__icon {
+  width: 44px; height: 44px; border-radius: var(--radius-md);
+  display: grid; place-items: center;
+  background: var(--app-primary-soft); color: var(--app-info-ink);
+  font-size: 1.25rem;
+  margin-bottom: var(--space-xl);
+}
+.lp-feature__title { font-size: 1rem; font-weight: 650; margin: 0 0 var(--space-md); }
+.lp-feature__text { font-size: .875rem; color: var(--app-ink-muted); line-height: 1.6; margin: 0; }
+
+/* Numbered steps */
+.lp-steps { display: grid; gap: var(--space-2xl); grid-template-columns: 1fr; counter-reset: step; }
+@media (min-width: 768px) { .lp-steps { grid-template-columns: repeat(3, 1fr); } }
+.lp-step { position: relative; padding-top: var(--space-2xl); }
+.lp-step::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute; top: 0; left: 0;
+  width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--app-primary); color: #fff;
+  font-size: .8125rem; font-weight: 700;
+}
+.lp-step__title { font-size: 1rem; font-weight: 650; margin: var(--space-xl) 0 var(--space-md); }
+.lp-step__text { font-size: .875rem; color: var(--app-ink-muted); line-height: 1.6; margin: 0; }
+
+/* Comparison table */
+.lp-compare {
+  width: 100%;
+  border-collapse: separate; border-spacing: 0;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  font-size: .875rem;
+}
+.lp-compare th, .lp-compare td {
+  padding: var(--space-lg) var(--space-xl);
+  text-align: left;
+  border-bottom: 1px solid var(--app-border);
+}
+.lp-compare thead th {
+  background: var(--app-surface-2);
+  font-size: .75rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--app-ink-subtle);
+}
+.lp-compare tbody tr:last-child th, .lp-compare tbody tr:last-child td { border-bottom: 0; }
+.lp-compare td .bi { color: var(--app-success-dot); }
+.lp-compare td.is-no .bi { color: var(--app-ink-subtle); }
+
+/* Closing CTA */
+.lp-final {
+  background: var(--app-sidebar-bg);
+  color: #fff;
+  border-radius: var(--radius-lg);
+  padding: clamp(32px, 6vw, 64px);
+  text-align: center;
+}
+.lp-final__title {
+  font-size: clamp(1.5rem, 3.4vw, 2.125rem); font-weight: 700;
+  margin: 0 0 var(--space-lg); letter-spacing: -.015em;
+}
+.lp-final__text {
+  color: var(--app-sidebar-ink); max-width: 54ch;
+  margin: 0 auto var(--space-2xl); line-height: 1.6;
+}
+.lp-final .lp-btn--ghost {
+  background: transparent; color: #fff; border-color: rgba(255, 255, 255, .35);
+}
+.lp-final .lp-btn--ghost:hover { border-color: #fff; color: #fff; }
+
+/* Footer */
+.lp-footer {
+  border-top: 1px solid var(--app-border);
+  padding: var(--space-3xl) 0;
+  font-size: .8125rem; color: var(--app-ink-subtle);
+}
+.lp-footer__inner { display: flex; flex-wrap: wrap; gap: var(--space-xl); align-items: center; }
+/* inline-flex with a min-height, not a bare inline link: at its natural 20px
+   the footer link was well under the 44px minimum touch target and awkward to
+   hit on a phone. */
+.lp-footer__inner a {
+  display: inline-flex; align-items: center;
+  min-height: 44px;
+  color: var(--app-ink-muted); text-decoration: none;
+}
+.lp-footer__inner a:hover { color: var(--app-primary); }
+
+/* Same reason: the brand lockup is the tap target that returns you home. */
+.lp-nav .app-brand { min-height: 44px; }
+
+/* --------------------------------------------------------------------------
+   Entrance motion. Held to a short fade-and-rise, and switched off entirely
+   for anyone who has asked for reduced motion.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+  .lp-reveal {
+    opacity: 0;
+    transform: translateY(12px);
+    animation: lp-rise 420ms cubic-bezier(.22, .61, .36, 1) forwards;
+  }
+  .lp-reveal:nth-child(2) { animation-delay: 60ms; }
+  .lp-reveal:nth-child(3) { animation-delay: 120ms; }
+  .lp-reveal:nth-child(4) { animation-delay: 180ms; }
+}
+@keyframes lp-rise {
+  to { opacity: 1; transform: none; }
+}
