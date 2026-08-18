@@ -364,9 +364,42 @@ DATABASES = {
 ```
 
 ### Static Files
+
+`STATIC_ROOT` defaults to `/var/www/<SITE_DOMAIN>`. Create it and hand it to the
+deploy user before the first collect, otherwise the command fails with
+`PermissionError` because `/var/www` is root-owned:
+
 ```bash
-python manage.py collectstatic
+sudo mkdir -p /var/www/attendance.thedeepit.com
+sudo chown -R $USER:www-data /var/www/attendance.thedeepit.com
+sudo chmod -R 755 /var/www/attendance.thedeepit.com
+sudo chmod g+s /var/www/attendance.thedeepit.com   # new files keep the group
 ```
+
+```bash
+python manage.py collectstatic --noinput
+```
+
+Do not run collectstatic with `sudo`: it leaves root-owned files that the next
+deploy cannot overwrite, and runs project code as root.
+
+To collect somewhere else (a dev box, or a host without `/var/www`):
+
+```bash
+STATIC_ROOT=./staticfiles python manage.py collectstatic --noinput
+```
+
+Uploads are separate. `MEDIA_ROOT` defaults to `BASE_DIR/media`, which nginx
+usually cannot read under `/home`. Either relax the home directory, or move it:
+
+```bash
+sudo mkdir -p /var/www/attendance.thedeepit.com-media
+sudo chown -R $USER:www-data /var/www/attendance.thedeepit.com-media
+# then set MEDIA_ROOT=/var/www/attendance.thedeepit.com-media in the environment
+```
+
+Keep media *outside* `STATIC_ROOT`: `collectstatic --clear` deletes everything
+in that directory, which would take uploaded documents with it.
 
 ### Web Server
 Use Gunicorn with Nginx:
