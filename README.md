@@ -188,10 +188,14 @@ unlinked enrolments and the roll-up into daily summaries behave identically.
 1. On the terminal: **Menu → Comm. → Ethernet → Cloud Server / ADMS** (wording varies
    by firmware; it may be called *Server Setting*, *Cloud Server*, or *ADMS*).
 2. Set:
-   - **Server address**: this server's IP or hostname
-   - **Server port**: the port Django is served on (e.g. `8000`)
+   - **Server address**: the public hostname, `attendance.thedeepit.com` — the
+     terminals sit at remote sites and reach the server over the internet
+   - **Server port**: `80`. This is the port nginx answers on, not the gunicorn
+     port behind it
    - **Enable Proxy Server**: off
-   - **HTTPS**: off unless the server presents a certificate the device trusts
+   - **HTTPS**: off unless the firmware handles TLS properly. With Cloudflare in
+     front, "Always Use HTTPS" must then be turned off for `/iclock/*` with a
+     Configuration Rule, or the 301 leaves the terminal retrying forever
 3. Save and reboot the terminal.
 4. The device calls `GET /iclock/cdata?SN=...`. Because the serial number is unknown,
    it is registered automatically as an **inactive** device and its data is refused
@@ -219,8 +223,27 @@ The device firmware fixes these paths; they are mounted at `/iclock/`.
 
 These views are unauthenticated and CSRF-exempt by protocol design — devices cannot
 carry a session. Access is controlled by serial number, and an unknown or inactive
-device is refused. **Expose `/iclock/` only on a trusted network** (LAN or VPN); on a
-public interface, anyone who learns a serial number can post punches for it.
+device is refused.
+
+That serial number is the whole credential, so anyone who learns one can post punches
+for it. On a LAN or VPN that is tolerable; this deployment cannot use one, because the
+terminals are at remote sites and reach `/iclock/` across the internet. What guards it
+instead, strongest first:
+
+1. **`ADMS_AUTO_REGISTER_DEVICES = False`**, set once the real terminals are enrolled.
+   Unknown serials are then refused outright rather than creating a row to approve.
+2. **A Cloudflare WAF rule on `/iclock/*`** allowing only the sites' public IPs, where
+   those are static. This is the only control that stops an attacker before it reaches
+   Django.
+3. **Rate limiting in nginx**, keyed on `CF-Connecting-IP` — see
+   `deploy/nginx/attendance.thedeepit.com.conf`. It caps how fast serials can be
+   guessed; it does not stop someone who already knows one.
+
+Note that a device is matched to an existing record by client IP only when its serial
+is not yet known (`devices/adms.py`). Reaching the server over the internet, that IP is
+the site's public address, so a `Device` row created for pull mode with a LAN address
+will not be adopted — a new inactive row appears instead. Either approve that row, or
+fill the serial number onto the existing one before the terminal first connects.
 
 ### Sending commands to a device
 

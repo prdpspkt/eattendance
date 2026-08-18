@@ -32,6 +32,18 @@ DEBUG = True
 # is derived from it, so a new domain is a one-line change.
 SITE_DOMAIN = os.environ.get('SITE_DOMAIN', 'attendance.thedeepit.com')
 
+# Extra hostnames or IPs this deployment answers to, comma separated. Not
+# needed for the biometric terminals, which reach the site over the internet on
+# SITE_DOMAIN and so are already covered below; it exists for the case where
+# something addresses this server by another name or by IP, which Django would
+# otherwise reject with 400 DisallowedHost:
+#     EXTRA_ALLOWED_HOSTS=attendance.lan,192.168.1.50
+EXTRA_ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get('EXTRA_ALLOWED_HOSTS', '').split(',')
+    if host.strip()
+]
+
 # Hosts this site will answer to. Note that once this list is non-empty,
 # Django enforces it even with DEBUG on, so the loopback IP is listed
 # alongside 'localhost' to keep the dev server reachable either way.
@@ -39,6 +51,7 @@ ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     SITE_DOMAIN,
+    *EXTRA_ALLOWED_HOSTS,
 ]
 
 # Origins allowed to submit forms. Django 4+ checks the Origin header on
@@ -239,11 +252,18 @@ HALF_DAY_MAX_HOURS = 4
 # ADMS / WDMS push protocol
 # -------------------------
 # Devices post to /iclock/ instead of being polled over TCP. Configure the
-# terminal with: Comm. -> Ethernet -> Cloud Server / ADMS -> this server's
-# address and port.
+# terminal with: Comm. -> Ethernet -> Cloud Server / ADMS -> SITE_DOMAIN, port
+# 80. The terminals are at remote sites and reach us over the internet, so
+# /iclock/ is publicly exposed; see the deploy notes for what guards it.
 # Auto-register unknown serial numbers as inactive devices awaiting approval.
-# With this off, unknown devices are rejected outright.
-ADMS_AUTO_REGISTER_DEVICES = True
+# With this off, unknown devices are rejected outright - which is what a
+# public /iclock/ wants once the real terminals are enrolled, since a serial
+# number is the only credential the protocol has. Turn it off by setting
+# ADMS_AUTO_REGISTER_DEVICES=0 in the service environment; no code change and
+# no redeploy, so it can be flipped the moment enrolment finishes.
+ADMS_AUTO_REGISTER_DEVICES = os.environ.get(
+    'ADMS_AUTO_REGISTER_DEVICES', '1'
+).lower() not in ('0', 'false', 'no')
 # Roll pushed punches into daily summaries immediately, so the app works
 # without a Celery worker running.
 ADMS_PROCESS_ON_PUSH = True
