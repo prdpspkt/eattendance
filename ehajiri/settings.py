@@ -179,10 +179,15 @@ WSGI_APPLICATION = 'ehajiri.wsgi.application'
 #                      exchange for not fsync'ing every commit. FULL costs an
 #                      fsync per write, which on the SD/eMMC storage these ARM
 #                      boards use is the slowest thing in the whole stack.
-#   cache_size=-16000  16 MB of page cache per connection (negative = KiB).
-#                      Pages are only read in on demand, so the realistic cost
-#                      is a fraction of that; see PERFORMANCE.md for the
-#                      worst-case arithmetic against the 500 MB budget.
+#   cache_size=-8000   8 MB of page cache PER CONNECTION (negative = KiB).
+#                      Read that again: per connection, and there is one per
+#                      worker thread, so the worst case is
+#                      WEB_CONCURRENCY x GUNICORN_THREADS x this. At the
+#                      default 4 x 4 that is 128 MB on a box with 655 MB total,
+#                      which is the most that can be justified. Raise it only
+#                      if you also reduce threads. Pages are read in on demand,
+#                      so the steady-state cost is far lower - today's database
+#                      is under a megabyte and will never approach the ceiling.
 #   temp_store=MEMORY  sorts and temporary B-trees stay off disk.
 #   mmap_size          reads served from the page cache with no read() syscall
 #                      and no extra copy.
@@ -192,7 +197,7 @@ WSGI_APPLICATION = 'ehajiri.wsgi.application'
 # transaction_mode='IMMEDIATE' takes the write lock when the transaction opens
 # rather than on its first write, which removes the deferred-to-write lock
 # upgrade that is the usual source of SQLITE_BUSY under concurrent writers.
-SQLITE_CACHE_KB = env_int('SQLITE_CACHE_KB', 16000)
+SQLITE_CACHE_KB = env_int('SQLITE_CACHE_KB', 8000)
 SQLITE_MMAP_BYTES = env_int('SQLITE_MMAP_BYTES', 134217728)  # 128 MB
 SQLITE_BUSY_TIMEOUT_MS = env_int('SQLITE_BUSY_TIMEOUT_MS', 10000)
 

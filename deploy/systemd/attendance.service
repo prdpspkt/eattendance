@@ -1,61 +1,106 @@
-# E-Attendance gunicorn service, sized for a 4-core / 500 MB ARM host.
+# E-Attendance gunicorn service.
 #
-# Install:
+# Sized for the deployment host: HiSilicon Hi3798, 4x Cortex-A53 up to
+# 1.6 GHz, 655 MB RAM, user "ubuntu" at /home/ubuntu/eattendance.
+#
+# Install (this path replaces the older unit of the same name):
 #   sudo cp deploy/systemd/attendance.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now attendance
 #
-# Check what it is actually using:
-#   systemctl status attendance
-#   systemd-cgtop -m
+# Verify - five processes, all of them naming the config file:
+#   ps -eo pid,ppid,rss,cmd | grep "[g]unicorn"
+#
+# If you ever see "--workers 2" or "--access-logfile" in that output, an older
+# unit is still installed somewhere and is fighting this one for port 8001.
 
 [Unit]
 Description=E-Attendance (gunicorn)
 After=network.target
-Wants=redis-server.service
+# The governor unit must have run first, or the CPU stays parked at 400 MHz
+# and this service runs at a quarter of the machine's capability.
+Wants=cpu-performance.service
+After=cpu-performance.service
 
 [Service]
 Type=notify
-User=deepit
-Group=deepit
-WorkingDirectory=/home/deepit/eattendance
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/eattendance
 
 # --- application settings -------------------------------------------------
 # DEBUG must be off. Beyond leaking internals, it makes Django retain every
-# SQL query it runs for the life of the process.
+# SQL query it runs for the lifetime of the process.
 Environment=DJANGO_DEBUG=0
 Environment=DJANGO_SETTINGS_MODULE=ehajiri.settings
 Environment=SITE_DOMAIN=attendance.thedeepit.com
 Environment=STATIC_ROOT=/var/www/attendance.thedeepit.com
 Environment=MEDIA_ROOT=/var/www/attendance.thedeepit.com-media
 Environment=LOG_LEVEL=WARNING
-# Generate once with:
-#   python -c "from django.core.management.utils import get_random_secret_key as k; print(k())"
-# and keep it out of git. EnvironmentFile is the better home for it:
-# Environment=DJANGO_SECRET_KEY=...
+
+# Secrets belong here, not in git. Create it with:
+#   sudo install -m 640 -o root -g ubuntu /dev/null /etc/default/attendance
+#   python -c "from django.core.management.utils import get_random_secret_key as k; print('DJANGO_SECRET_KEY=' + k())" | sudo tee -a /etc/default/attendance
+# The leading '-' means the service still starts if the file is absent.
 EnvironmentFile=-/etc/default/attendance
 
 # Set this once the real terminals are enrolled, so unknown serial numbers on
 # the public /iclock/ endpoint are refused outright.
 # Environment=ADMS_AUTO_REGISTER_DEVICES=0
 
-# Share the cache and the device records across workers, and let sessions be
-# looked up without a database hit. Only takes effect if redis is running;
-# without it the app falls back to a per-process local cache and still works.
-Environment=REDIS_URL=redis://127.0.0.1:6379/1
+# Redis, for a cache shared across workers (device lookups, sessions).
+# COMMENTED OUT DELIBERATELY: if this is set and redis is not actually
+# running, every cached read raises and the site fails. Without it the app
+# uses a per-process local cache and works fine. Enable it only after
+# confirming `systemctl is-active redis-server` says "active" - then also
+# uncomment the Wants/After lines for it.
+# Environment=REDIS_URL=redis://127.0.0.1:6379/1
 
-# With a Celery worker running, hand the daily-summary rollup to it instead of
-# doing it inside the device's own request - it is the single most expensive
-# part of handling a push. Leave this at 1 if no worker is running, or pushed
-# punches will never be rolled up.
+# With a Celery worker running, hand the daily-summary rollup to it rather
+# than doing it inside the device's own request - it is the most expensive
+# part of handling a push. Leave this unset (the default is on) if no worker
+# is running, or pushed punches will never be rolled up into daily summaries.
 # Environment=ADMS_PROCESS_ON_PUSH=0
 
 # --- process sizing -------------------------------------------------------
-Environment=WEB_CONCURRENCY=4
-Environment=GUNICORN_THREADS=4
+# Eight workers on four cores - the classic (2 x cores) sizing. They do not
+# add CPU throughput, since the work is CPU-bound Python and four cores can
+# only run four things at once; what they buy is that a worker blocked on a
+# SQLite write or a disk read is not a quarter of the server going idle.
+#
+# This is only affordable because gunicorn.conf.py sets preload_app: Django is
+# imported once in the master and forked, so the interpreter, modules and
+# compiled templates are shared copy-on-write pages. Without preloading, the
+# 55 MB-per-worker figure measured on this box would put eight workers at
+# ~440 MB and the machine would start swapping (there is no swap) or OOM.
+#
+# If throughput drops or memory gets tight, 4-6 is the range to try; measure,
+# do not assume.
+Environment=WEB_CONCURRENCY=8
 
-ExecStart=/home/deepit/eattendance/.venv/bin/gunicorn \
-    -c /home/deepit/eattendance/deploy/gunicorn.conf.py \
+# Two threads per worker, giving 16 requests in flight. Python's GIL means
+# threads add no CPU throughput, and with eight processes already competing
+# for four cores, more threads would mostly add GIL contention. Two covers the
+# occasional disk wait.
+#
+# This also bounds the SQLite page cache, which is charged per connection and
+# therefore per thread: 8 workers x 2 threads x 4 MB = 64 MB worst case.
+Environment=GUNICORN_THREADS=2
+
+# 4 MB rather than the 8 MB default, because the worst case is multiplied by
+# 16 connections here. The database is under a megabyte today, so this ceiling
+# is nowhere near being reached - it is set to bound the worst case, not the
+# expected one.
+Environment=SQLITE_CACHE_KB=4000
+
+# Bind to loopback: nginx proxies from 127.0.0.1 (see the upstream block in
+# deploy/nginx/), so there is no reason to expose gunicorn to the network.
+# Change to 0.0.0.0:8001 only to benchmark from another machine, and change
+# it back afterwards.
+Environment=GUNICORN_BIND=127.0.0.1:8001
+
+ExecStart=/home/ubuntu/eattendance/.venv/bin/gunicorn \
+    -c /home/ubuntu/eattendance/deploy/gunicorn.conf.py \
     ehajiri.wsgi:application
 
 ExecReload=/bin/kill -s HUP $MAINPID
@@ -64,20 +109,30 @@ Restart=always
 RestartSec=2
 
 # --- resource limits ------------------------------------------------------
-# A hard ceiling below the machine's 500 MB, so a runaway worker is killed by
-# the cgroup rather than by the kernel OOM killer picking a victim at random -
-# which on a box this size is as likely to be redis or sshd as gunicorn.
-# MemoryHigh throttles and reclaims first, giving the process a chance to
-# recover before MemoryMax kills it.
-MemoryHigh=320M
-MemoryMax=400M
+# The box has 655 MB total and NO SWAP, of which the OS and sshd use ~110 MB.
+# Eight preloaded workers should land somewhere near 300-380 MB depending on
+# how much stays shared after fork.
+#
+# MemoryHigh throttles the cgroup and reclaims first, giving it a chance to
+# recover; MemoryMax is the hard stop, so a runaway worker is killed by its own
+# cgroup rather than by the kernel OOM killer picking a victim at random -
+# which on a box this size is as likely to be sshd as gunicorn.
+#
+# Watch this after deploying eight workers; it is the setting most likely to
+# need adjusting:
+#   systemctl status attendance | grep Memory
+#   journalctl -u attendance | grep -i -E "memory|killed"
+# If workers are being killed, either raise MemoryMax (there is headroom to
+# about 480M before the OS itself is squeezed) or lower WEB_CONCURRENCY.
+MemoryHigh=420M
+MemoryMax=500M
 
-# File descriptors. Each in-flight connection needs one, and the default
-# soft limit of 1024 is reached well before the app's actual capacity.
+# File descriptors. Each in-flight connection needs one, and the 1024 default
+# is reached well before this app's actual capacity.
 LimitNOFILE=65535
 
-# Tasks: workers x threads plus overhead, with room to spare.
-TasksMax=256
+# workers x threads plus overhead, with room to spare.
+TasksMax=512
 
 [Install]
 WantedBy=multi-user.target

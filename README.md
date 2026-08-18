@@ -467,15 +467,27 @@ file sets one worker per core, threads, `preload_app` for shared memory, and
 the connection backlog; see `deploy/gunicorn.conf.py`, where every value is
 commented and overridable from the environment.
 
-Install it as a service with `deploy/systemd/attendance.service`, which pins the
-worker count and sets a memory ceiling so a runaway worker is killed by its
-cgroup rather than by the OOM killer picking on sshd:
+Deploy with the script, which installs dependencies, migrates, collects static
+files, installs both systemd units, restarts the service and then **verifies**
+the result — CPU clock, worker count, health check and memory:
 
 ```bash
-sudo cp deploy/systemd/attendance.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now attendance
+./deploy/deploy.sh
 ```
+
+It also refuses to report success if an older gunicorn is still running with a
+different command line, which is a failure mode that otherwise hides itself:
+the deploy looks fine while the old process serves every request.
+
+The two units it installs:
+
+- `deploy/systemd/attendance.service` — pins the worker count and sets a memory
+  ceiling, so a runaway worker is killed by its own cgroup rather than by the
+  OOM killer picking on sshd.
+- `deploy/systemd/cpu-performance.service` — pins the CPU governor to
+  `performance`. **Do not skip this.** The TV-box image ships with `powersave`,
+  which parks all four cores at 400 MHz against a 1.6 GHz ceiling; that alone
+  was measured at 4× the throughput of the whole application.
 
 nginx config: `deploy/nginx/attendance.thedeepit.com.conf`. The comment block at
 the end lists the host-wide `nginx.conf` settings it assumes (worker counts,

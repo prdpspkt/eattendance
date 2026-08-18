@@ -8,19 +8,32 @@ and how to measure it without measuring the wrong thing.
 Throughput is not a property of a server, it is a property of a server *and an
 endpoint*. On this hardware:
 
-| Endpoint | What it costs | Realistic on 4 ARM cores |
-|---|---|---|
-| `/healthz/` | no DB, no template | **2000+ req/s** — reachable |
-| `/static/*` via nginx | a file read | **5000+ req/s** — reachable |
-| `/iclock/*` heartbeats (`ping`, `getrequest`) | 0–1 cached reads | **1500–3000 req/s** — reachable |
-| `/iclock/cdata` punch uploads | parse + batched writes | **300–800 uploads/s**, each carrying many punches |
-| `/dashboard/`, report pages | 5–15 queries + template render | **200–600 req/s** — *not* 2000 |
+The target hardware is a HiSilicon Hi3798 TV box: four Cortex-A53 cores, with
+frequency steps of 400 / 600 / 800 / 1200 / **1600** MHz. An A53 is a small
+in-order core, roughly 8–12× slower than a current
+laptop core on CPython. For reference, `/healthz/` through the full Django WSGI
+stack measures **0.104 ms/request single-threaded on an x86 laptop**; scale that
+by the core ratio, then subtract gunicorn and kernel networking overhead, to get:
 
-The first three targets are met by the changes below. **The dashboard is not
-going to serve 2000 req/s on four ARM cores**, and no amount of tuning gets it
-there — at 2000 req/s each core has ~2 ms per request, which is less than the
-template render alone. If you need that number on a page, the answer is caching
-the rendered response, not a faster stack.
+| Endpoint | What it costs | Realistic on this box (all 4 cores, at full clock) |
+|---|---|---|
+| `/static/*` via nginx | a file read | 3000+ req/s |
+| `/healthz/` | no DB, no template | **800–2000 req/s** — 2000 is the optimistic ceiling |
+| `/iclock/*` heartbeats (`ping`, `getrequest`) | 0–1 cached reads | 400–1000 req/s |
+| `/iclock/cdata` punch uploads | parse + batched writes | 100–300 uploads/s, each carrying many punches |
+| `/dashboard/`, report pages | 5–15 queries + template render | **30–100 req/s** |
+
+**2000 req/s is not achievable on this hardware for anything that touches the
+database or renders a template.** It is borderline-plausible for `/healthz/`
+with everything tuned. No configuration change moves the dashboard there: at
+2000 req/s each core would have 2 ms per request, and the template render alone
+costs far more than that on an A53. If a page genuinely needs that rate, the
+answer is caching the rendered response so it is not rendered 2000 times a
+second — see the last section — or different hardware.
+
+Worth keeping in perspective: the real workload is a hundred terminals polling
+every ten seconds, which is 10 req/s. 2000 is a burst-tolerance target, and
+burst tolerance is what the backlog and worker settings buy.
 
 The good news is that the real workload is nowhere near it. A hundred terminals
 polling every 10 seconds is 10 req/s. 2000 req/s is a burst-tolerance target,
@@ -51,6 +64,95 @@ Four separate problems, none of them the application's actual speed:
    hitting its own descriptor limit. `ab` also caps at 20000 connections and is
    single-threaded — at these rates it becomes the bottleneck itself.
 
+## The two traps on this hardware
+
+This deployment runs on an Android TV box: HiSilicon Hi3798, four Cortex-A53
+cores. Both of the following were found in production and cost roughly 7× of
+the machine's throughput between them. Check both after any reimage.
+
+### 1. The CPU governor parks the cores at their floor
+
+Android-derived images ship with `powersave`, and the cores sit at 400 MHz
+against a ceiling of 1.2–1.6 GHz.
+
+```bash
+cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor   # want: performance
+cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq   # want: near cpuinfo_max_freq
+```
+
+Fix, persistently:
+
+```bash
+sudo apt install -y cpufrequtils
+echo 'GOVERNOR="performance"' | sudo tee /etc/default/cpufrequtils
+```
+
+These boxes have no airflow, so confirm the clock is actually being held under
+sustained load rather than thermally throttled back:
+
+```bash
+cat /sys/class/thermal/thermal_zone*/temp   # divide by 1000 for degrees C
+```
+
+### 2. gunicorn started without this repo's config
+
+The unit that was running had been launched as:
+
+```
+gunicorn --workers 2 --threads 2 --access-logfile - ehajiri.wsgi:application
+```
+
+Two workers on a four-core box, no `preload_app`, and an access-log write for
+every single request - which on an A53 with the output going to journald is a
+significant per-request cost, not a rounding error. Always launch via
+`-c deploy/gunicorn.conf.py`, and verify:
+
+```bash
+pgrep -c -f gunicorn      # expect workers + 1 (master)
+```
+
+### 2b. ...and the old one does not go away when you kill it
+
+This wasted two benchmark rounds, so it is worth stating plainly. The old
+`attendance.service` had `Restart=always`. Killing the process with
+`pkill -f gunicorn` made systemd start it straight back up, with the old
+command line, still bound to port 8001. A hand-started gunicorn using the
+correct config was running *at the same time*, and the benchmark was being
+served by whichever held the port - so the numbers reflected the old
+configuration while everything looked healthy.
+
+Stop the **service**, not the process:
+
+```bash
+sudo systemctl stop attendance
+pgrep -c -f gunicorn          # must be 0 before you start anything
+```
+
+`deploy/deploy.sh` checks for this automatically and refuses to report success
+if a process with the old command line is still alive.
+
+## Measurements from this box
+
+Each row changes exactly one thing from the row above it.
+
+| Configuration | `ab -k -n 20000 -c 200 /healthz/` |
+|---|---|
+| 400 MHz (powersave), 2 workers, access log on | **149 req/s** |
+| 1.6 GHz (performance), 2 workers, access log on | **589 req/s** |
+| 1.6 GHz, 8 workers, no access log | *measure and record here* |
+
+The first step is a 3.95x gain from one `echo performance` - almost exactly the
+4x the clock ratio predicts, which is also how we knew the worker changes had
+*not* taken effect yet.
+
+For reference, `/healthz/` through the full Django WSGI stack costs
+**0.104 ms/request** single-threaded on an x86 laptop (~9600 req/s). That is the
+application's own cost; everything between it and the numbers above is
+hardware, gunicorn and the benchmark client. Note that `ab` runs on the same
+four cores it is measuring and consumes roughly one of them, so these figures
+understate the server - benchmark from another machine over the LAN for a
+truer number.
+
 ## How to measure it properly
 
 ```bash
@@ -80,13 +182,24 @@ page with a real session cookie. `scripts/loadtest.py` takes `-H` for that.
 
 ## What changed
 
-### Worker model (`deploy/gunicorn.conf.py`)
-4 workers, one per core, × 4 threads. `preload_app` forks after loading Django
-so the interpreter and compiled templates are shared copy-on-write pages rather
-than being built four times — roughly 100 MB shared plus a small private set
-per worker, instead of 4 × 100 MB. `worker_tmp_dir=/dev/shm` keeps the
-heartbeat off disk; `backlog=2048` absorbs bursts; workers recycle every ~20k
-requests as a guard against slow growth.
+### Worker model (`deploy/gunicorn.conf.py`, sized in the systemd unit)
+**8 workers × 2 threads** on this host — the classic 2×cores sizing. The extra
+processes beyond four do not add CPU throughput, since four cores can only run
+four things at once and the work is CPU-bound Python; what they buy is that a
+worker blocked on a SQLite write or a disk read is not a quarter of the server
+sitting idle.
+
+Eight is only affordable because of `preload_app`, which imports Django once in
+the master and forks, so the interpreter, modules and compiled templates start
+as shared copy-on-write pages. The workers on this box measured 55 MB each
+*without* preloading — eight of those would be ~440 MB on a 655 MB machine with
+no swap.
+
+`worker_tmp_dir=/dev/shm` keeps the heartbeat off disk; `backlog=2048` absorbs
+bursts; workers recycle every ~20k requests as a guard against slow growth.
+
+Access logging is **off**. At these rates it is a formatted write per request,
+and nginx already logs the same traffic one hop earlier.
 
 ### `DEBUG=False` by default (`ehajiri/settings.py`)
 With `DEBUG` on, Django appends every SQL query to `connection.queries_log` for
@@ -98,7 +211,7 @@ PostgreSQL would claim 150–250 MB of a 500 MB budget for itself. SQLite fits
 this workload; what it needed was `journal_mode=WAL` (readers stop blocking the
 writer — without it, concurrent workers mostly produce "database is locked"),
 `synchronous=NORMAL` (no fsync per commit, which on SD/eMMC storage is the
-slowest thing in the stack), a 16 MB page cache, `mmap_size`, and
+slowest thing in the stack), an 8 MB page cache, `mmap_size`, and
 `transaction_mode=IMMEDIATE` to avoid deferred lock upgrades under concurrent
 writers. Connections persist across requests (`CONN_MAX_AGE`), keeping the page
 cache warm.
@@ -153,22 +266,43 @@ config for the host-wide `nginx.conf` settings it assumes.
 
 ## Memory budget
 
+The box has **655 MB total and no swap**. Measured with the old 2-worker setup:
+~220 MB used, ~434 MB available.
+
 | | |
 |---|---|
-| gunicorn master + 4 preloaded workers | ~200–240 MB |
+| gunicorn master + 8 preloaded workers | ~300–380 MB |
 | nginx (4 workers) | ~20 MB |
 | redis (optional, small dataset) | ~15 MB |
 | Celery worker (optional, 1 process) | ~60 MB |
-| OS, sshd, journald | ~80 MB |
-| **Total** | **~380–420 MB** |
+| OS, sshd, journald | ~110 MB |
+| **Total** | **~440–520 MB** |
 
-That is snug in 500 MB. `MemoryHigh=320M` / `MemoryMax=400M` in the systemd
-unit make gunicorn the thing that gets reclaimed and killed if something grows,
-rather than the kernel OOM killer choosing sshd or redis.
+Eight workers is the setting most likely to need adjusting, and there is not
+much slack left — especially if you also run Celery and redis. `MemoryHigh=420M`
+/ `MemoryMax=500M` make gunicorn the thing that gets reclaimed and killed if
+something grows, rather than the kernel OOM killer choosing sshd. **Check this
+after deploying:**
 
-If it is too tight, in order: drop `GUNICORN_THREADS` to 2, drop
-`SQLITE_CACHE_KB` to 8000, then `WEB_CONCURRENCY` to 3. Dropping workers costs
-the most throughput, so it goes last.
+```bash
+systemctl status attendance | grep Memory
+journalctl -u attendance | grep -i -E "memory|killed"
+```
+
+If workers are being killed, drop `WEB_CONCURRENCY` to 6, then 4. Since the
+machine has no swap, an over-commitment here is not a slowdown — it is a
+process disappearing.
+
+`SQLITE_CACHE_KB` is charged **per connection**, and there is one connection per
+worker thread - so the worst case is
+`WEB_CONCURRENCY x GUNICORN_THREADS x SQLITE_CACHE_KB`, or 128 MB at the
+defaults. That is why the default is 8 MB and not something more generous;
+pages are only read in on demand, so the steady state is far below the ceiling,
+but the ceiling is what has to fit.
+
+If it is too tight, in order: drop `GUNICORN_THREADS` to 2 (which also halves
+that SQLite ceiling), drop `SQLITE_CACHE_KB` to 4000, then `WEB_CONCURRENCY`
+to 3. Dropping workers costs the most throughput, so it goes last.
 
 ## If you genuinely need 2000 req/s on the dashboard
 

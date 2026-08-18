@@ -1,0 +1,41 @@
+# Pin the CPU governor to "performance" at boot.
+#
+# This host is an Android TV box (HiSilicon Hi3798, 4x Cortex-A53). Its image
+# ships with the "powersave" governor, which parks every core at 400 MHz
+# against a 1.6 GHz ceiling - a 4x throughput loss that is invisible unless you
+# go looking for it. This was measured: the app served 149 req/s parked and
+# 588 req/s at full clock, with no other change.
+#
+# The setting does not survive a reboot on its own, hence this unit.
+#
+# Install:
+#   sudo cp deploy/systemd/cpu-performance.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now cpu-performance
+#
+# Verify (expect 1600000 on every core):
+#   cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq
+#
+# Note on heat: these boxes have no active cooling, and holding 1.6 GHz will
+# raise the die temperature. This SoC exposes no thermal_zone to read, so the
+# symptom to watch for is throughput sagging partway through a sustained load
+# test. If that happens, cap the maximum frequency instead of reverting the
+# governor - 1200000 is the next step down and still 3x the parked clock:
+#
+#   ExecStart=/bin/sh -c 'echo 1200000 | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq'
+
+[Unit]
+Description=Set CPU governor to performance
+After=multi-user.target
+# Skip cleanly on hardware without cpufreq (a VM, or a different board)
+# instead of failing the boot.
+ConditionPathExists=/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# The shell is needed for the glob: systemd does not expand cpu*.
+ExecStart=/bin/sh -c 'echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null'
+
+[Install]
+WantedBy=multi-user.target
