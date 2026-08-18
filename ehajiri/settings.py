@@ -28,7 +28,29 @@ SECRET_KEY = 'django-insecure-twm2ajx1fo7tgub!4p=dvy^j=r6*!5o&j#3c-*-3uhf-py%2!-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+# The public hostname this deployment serves. Everything host-dependent below
+# is derived from it, so a new domain is a one-line change.
+SITE_DOMAIN = os.environ.get('SITE_DOMAIN', 'attendance.thedeepit.com')
+
+# Hosts this site will answer to. Note that once this list is non-empty,
+# Django enforces it even with DEBUG on, so the loopback IP is listed
+# alongside 'localhost' to keep the dev server reachable either way.
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    SITE_DOMAIN,
+]
+
+# Origins allowed to submit forms. Django 4+ checks the Origin header on
+# unsafe requests, and when nginx terminates TLS the browser sends
+# https://... while Django sees a plain http request, so the https origin
+# must be listed explicitly or every POST fails CSRF verification.
+CSRF_TRUSTED_ORIGINS = [
+    f'https://{SITE_DOMAIN}',
+    f'http://{SITE_DOMAIN}',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
 
 
 # Application definition
@@ -148,10 +170,16 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 # Destination for `manage.py collectstatic`: the directory the web server
 # serves /static/ from. Override with the STATIC_ROOT environment variable on
 # machines where that path does not exist, e.g. a Windows dev box.
-STATIC_ROOT = Path(os.environ.get('STATIC_ROOT', '/var/www/attendance.thedeepit.com'))
+STATIC_ROOT = Path(os.environ.get('STATIC_ROOT', f'/var/www/{SITE_DOMAIN}'))
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', BASE_DIR / 'media'))
+
+# Employees created automatically from a device enrolment have no real email
+# address. The placeholder uses our own domain so nothing is ever addressed to
+# a third party's mail server; set it to a reserved domain such as
+# 'invalid' if you would rather these never resemble deliverable addresses.
+PLACEHOLDER_EMAIL_DOMAIN = os.environ.get('PLACEHOLDER_EMAIL_DOMAIN', SITE_DOMAIN)
 
 # Login URLs
 LOGIN_URL = '/login/'

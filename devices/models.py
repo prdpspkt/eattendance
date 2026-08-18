@@ -293,9 +293,14 @@ class Device(models.Model):
                             password = ''.join(secrets.choice(alphabet) for i in range(10))
 
                             # Create user account
+                            from django.conf import settings as django_settings
+                            placeholder_domain = getattr(
+                                django_settings, 'PLACEHOLDER_EMAIL_DOMAIN', 'invalid'
+                            )
+
                             new_user = User.objects.create_user(
                                 username=username,
-                                email=f"{username}@temp.com",
+                                email=f"{username}@{placeholder_domain}",
                                 first_name=first_name,
                                 last_name=last_name,
                                 password=password,
