@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+
+{% block title %}Overtime &mdash; {{ record.employee.user.get_full_name }} - E-Attendance{% endblock %}
+{% block page-title %}Overtime record{% endblock %}
+
+{% block auth_content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-header__title">{{ record.employee.user.get_full_name }}</h2>
+        <p class="page-header__subtitle">
+            {{ record.date|date:"l, j F Y" }} &middot; {{ record.hours|floatformat:2 }} hours computed from the punches
+        </p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'attendance:overtime_report' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to report
+        </a>
+    </div>
+</div>
+
+{% if record.is_frozen %}
+<div class="alert alert-info" role="alert">
+    <i class="bi bi-lock alert__icon" aria-hidden="true"></i>
+    <div>
+        <strong>Approved{% if record.approved_by %} by {{ record.approved_by.get_full_name }}{% endif %}{% if record.approved_at %} on {{ record.approved_at|date:"d M Y" }}{% endif %}.</strong>
+        The hours and rate no longer follow the punches &mdash; approving fixed them, so a
+        later recalculation cannot quietly change what was signed off. Reopen the record
+        from the Django admin if the underlying punches genuinely changed.
+    </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-clipboard-check" aria-hidden="true"></i>
+                    <span class="card-title">Justification and payment</span>
+                </div>
+                <div class="card-body">
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill alert__icon" aria-hidden="true"></i>
+                            <div>{{ form.non_field_errors }}</div>
+                        </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label for="{{ form.job_performed.id_for_label }}" class="form-label">
+                            {{ form.job_performed.label }}
+                        </label>
+                        {{ form.job_performed }}
+                        <p class="form-text mb-0">{{ form.job_performed.help_text }}</p>
+                        {% if form.job_performed.errors %}<div class="text-danger small mt-1">{{ form.job_performed.errors }}</div>{% endif %}
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-sm-6">
+                            <label for="{{ form.start_at.id_for_label }}" class="form-label">{{ form.start_at.label }}</label>
+                            {{ form.start_at }}
+                            {% if form.start_at.errors %}<div class="text-danger small mt-1">{{ form.start_at.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-sm-6">
+                            <label for="{{ form.end_at.id_for_label }}" class="form-label">{{ form.end_at.label }}</label>
+                            {{ form.end_at }}
+                            {% if form.end_at.errors %}<div class="text-danger small mt-1">{{ form.end_at.errors }}</div>{% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.hourly_rate.id_for_label }}" class="form-label">{{ form.hourly_rate.label }}</label>
+                        {{ form.hourly_rate }}
+                        <p class="form-text mb-0">{{ form.hourly_rate.help_text }}</p>
+                        {% if form.hourly_rate.errors %}<div class="text-danger small mt-1">{{ form.hourly_rate.errors }}</div>{% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.notes.id_for_label }}" class="form-label">Notes</label>
+                        {{ form.notes }}
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{% url 'attendance:overtime_report' %}" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save" aria-hidden="true"></i> Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        {% if not record.is_frozen and not record.needs_job_description %}
+        <form method="post" action="{% url 'attendance:overtime_approve' record.id %}" class="mt-3">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success">
+                <i class="bi bi-check-lg" aria-hidden="true"></i> Approve this overtime
+            </button>
+            <span class="form-text ms-2">Fixes the hours and rate for payment.</span>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-calculator" aria-hidden="true"></i>
+                <span class="card-title">Summary</span>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-5 text-muted fw-normal">Employee ID</dt>
+                    <dd class="col-7 mono">{{ record.employee.employee_id }}</dd>
+
+                    <dt class="col-5 text-muted fw-normal">Department</dt>
+                    <dd class="col-7">{{ record.employee.department.name|default:"&mdash;" }}</dd>
+
+                    <dt class="col-5 text-muted fw-normal">Date</dt>
+                    <dd class="col-7">{{ record.date|date:"d M Y" }}</dd>
+
+                    <dt class="col-5 text-muted fw-normal">Period</dt>
+                    <dd class="col-7 mono">{{ record.start_at|time:"H:i" }} &ndash; {{ record.end_at|time:"H:i" }}</dd>
+
+                    <dt class="col-5 text-muted fw-normal">Payable hours</dt>
+                    <dd class="col-7 tabular"><strong>{{ record.hours|floatformat:2 }}</strong></dd>
+
+                    <dt class="col-5 text-muted fw-normal">Rate</dt>
+                    <dd class="col-7 tabular">
+                        {% if record.hourly_rate is not None %}{{ record.hourly_rate|floatformat:2 }}{% else %}&mdash;{% endif %}
+                    </dd>
+
+                    <dt class="col-5 text-muted fw-normal">Amount</dt>
+                    <dd class="col-7 tabular">
+                        {% if record.amount is not None %}<strong>{{ record.amount|floatformat:2 }}</strong>{% else %}&mdash;{% endif %}
+                    </dd>
+
+                    <dt class="col-5 text-muted fw-normal">Status</dt>
+                    <dd class="col-7">
+                        {% if record.status == 'APPROVED' %}
+                            <span class="chip chip--success">Approved</span>
+                        {% elif record.status == 'REJECTED' %}
+                            <span class="chip chip--danger">Rejected</span>
+                        {% else %}
+                            <span class="chip chip--neutral">Pending</span>
+                        {% endif %}
+                    </dd>
+                </dl>
+
+                {% if record.hourly_rate is None %}
+                <div class="alert alert-warning mt-3 mb-0">
+                    <i class="bi bi-exclamation-triangle alert__icon" aria-hidden="true"></i>
+                    <div class="small">
+                        No rate set, so this record contributes hours but no amount to the
+                        report total. Set one here, or on the employee record so it applies
+                        to their future overtime.
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

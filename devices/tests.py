@@ -418,7 +418,7 @@ class DeviceRegistrationTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn('ip_address', form.errors)
 
-    def test_pull_device_gets_the_zkteco_defaults(self):
+    def test_pull_device_gets_the_protocol_defaults(self):
         from devices.forms import DeviceForm
 
         form = DeviceForm(data={

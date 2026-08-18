@@ -1,10 +1,11 @@
 from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from attendance.models import Attendance, DailyAttendance
+from attendance.models import Attendance, DailyAttendance, OvertimeRecord
 from core.models import Employee, EmployeeShift, Shift
 from core.workweek import is_weekend, working_days_between
 from devices.models import Device, EmployeeDevice
@@ -357,3 +358,226 @@ class LeaveDayCountTests(TestCase):
         request.save()
 
         self.assertEqual(float(request.total_days), 3)
+
+
+class ManualAttendanceTests(TestCase):
+    """Administrator corrections, and the audit trail they carry."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(username='hr', password='pw-123456')
+        user = User.objects.create_user(username='forgot', first_name='For', last_name='Got')
+        self.employee = Employee.objects.create(
+            user=user, employee_id='MAN001', join_date=date(2024, 1, 1), device_uid=77,
+        )
+        self.shift = Shift.objects.create(
+            name='Day', start_time=time(9, 0), end_time=time(17, 0),
+            late_grace_minutes=15, early_exit_minutes=15, break_duration_minutes=0,
+        )
+        EmployeeShift.objects.create(
+            employee=self.employee, shift=self.shift, effective_date=date(2024, 1, 1),
+        )
+        self.device = Device.objects.create(
+            name='Door', serial_number='SNMAN1', is_active=True, push_enabled=True,
+        )
+
+    def _manual(self, when, punch_type, reason='Forgot to scan'):
+        return Attendance.objects.create(
+            employee=self.employee, device=None, timestamp=when, punch_type=punch_type,
+            source=Attendance.SOURCE_MANUAL, reason=reason, recorded_by=self.admin,
+        )
+
+    def test_manual_punches_are_rolled_up_like_device_punches(self):
+        day = date(2026, 3, 2)
+        self._manual(at(day, 9), 0)
+        self._manual(at(day, 17), 1)
+
+        daily = Attendance.process_daily_attendance(self.employee, day)
+        self.assertEqual(float(daily.working_hours), 8.0)
+
+    def test_a_manual_punch_survives_a_later_device_push(self):
+        """This is why manual entries are punches rather than summary edits.
+
+        A hand-edited DailyAttendance would be wiped by the next rollup, and a
+        rollup fires whenever any device pushes.
+        """
+        day = date(2026, 3, 3)
+        self._manual(at(day, 9), 0)
+        Attendance.objects.create(
+            employee=self.employee, device=self.device,
+            timestamp=at(day, 17), punch_type=1, uid=77,
+        )
+
+        Attendance.process_daily_attendance(self.employee, day)
+        Attendance.process_daily_attendance(self.employee, day)
+
+        daily = DailyAttendance.objects.get(employee=self.employee, date=day)
+        self.assertEqual(float(daily.working_hours), 8.0)
+        self.assertTrue(
+            Attendance.objects.filter(employee=self.employee, source='MANUAL').exists()
+        )
+
+    def test_a_manual_punch_records_who_and_why(self):
+        punch = self._manual(at(date(2026, 3, 4), 9), 0, reason='Device offline')
+        self.assertTrue(punch.is_manual)
+        self.assertEqual(punch.recorded_by, self.admin)
+        self.assertIn('Manual entry by', punch.source_label)
+
+    def test_the_form_refuses_a_manual_entry_with_no_reason(self):
+        from attendance.forms import ManualAttendanceForm
+
+        form = ManualAttendanceForm(
+            data={'employee': self.employee.id, 'timestamp': '2026-03-05T09:00',
+                  'punch_type': 0, 'reason': '   '},
+            recorded_by=self.admin,
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn('reason', form.errors)
+
+    def test_the_form_refuses_a_future_punch(self):
+        from attendance.forms import ManualAttendanceForm
+
+        future = (timezone.now() + timedelta(days=1)).strftime('%Y-%m-%dT%H:%M')
+        form = ManualAttendanceForm(
+            data={'employee': self.employee.id, 'timestamp': future,
+                  'punch_type': 0, 'reason': 'Planned'},
+            recorded_by=self.admin,
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn('timestamp', form.errors)
+
+
+class OvertimeRecordTests(TestCase):
+    """Overtime as a payment document: hours, the job done, and a signature."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(username='boss2', password='pw-123456')
+        user = User.objects.create_user(username='worker', first_name='Over', last_name='Time')
+        self.employee = Employee.objects.create(
+            user=user, employee_id='OT001', join_date=date(2024, 1, 1), device_uid=88,
+            overtime_hourly_rate=Decimal('120.00'),
+        )
+        self.shift = Shift.objects.create(
+            name='Day', start_time=time(9, 0), end_time=time(17, 0),
+            late_grace_minutes=15, early_exit_minutes=15, break_duration_minutes=0,
+        )
+        EmployeeShift.objects.create(
+            employee=self.employee, shift=self.shift, effective_date=date(2024, 1, 1),
+        )
+        self.device = Device.objects.create(
+            name='Door', serial_number='SNOT1', is_active=True, push_enabled=True,
+        )
+
+    def _worked(self, day, out_hour):
+        for hour, punch in ((9, 0), (out_hour, 1)):
+            Attendance.objects.create(
+                employee=self.employee, device=self.device,
+                timestamp=at(day, hour), punch_type=punch, uid=88,
+            )
+        return Attendance.process_daily_attendance(self.employee, day)
+
+    def test_overtime_creates_a_record_covering_the_period_worked(self):
+        day = date(2026, 4, 1)
+        self._worked(day, 20)
+
+        record = OvertimeRecord.objects.get(employee=self.employee, date=day)
+        self.assertEqual(timezone.localtime(record.start_at).hour, 17)
+        self.assertEqual(timezone.localtime(record.end_at).hour, 20)
+        self.assertGreater(record.hours, 0)
+        # The rollup cannot know what the work was; a person supplies that.
+        self.assertTrue(record.needs_job_description)
+
+    def test_the_rollup_never_overwrites_the_job_description(self):
+        day = date(2026, 4, 2)
+        self._worked(day, 20)
+        record = OvertimeRecord.objects.get(employee=self.employee, date=day)
+        record.job_performed = 'Quarterly stock count'
+        record.save()
+
+        Attendance.process_daily_attendance(self.employee, day)
+
+        record.refresh_from_db()
+        self.assertEqual(record.job_performed, 'Quarterly stock count')
+
+    def test_approved_overtime_is_frozen_against_recalculation(self):
+        """Approving signs off an amount, and a signed-off amount must not drift."""
+        day = date(2026, 4, 3)
+        self._worked(day, 20)
+        record = OvertimeRecord.objects.get(employee=self.employee, date=day)
+        record.job_performed = 'Server migration'
+        record.save()
+        record.approve(self.admin)
+        approved_hours = record.hours
+
+        Attendance.objects.create(
+            employee=self.employee, device=self.device,
+            timestamp=at(day, 22), punch_type=1, uid=88,
+        )
+        Attendance.process_daily_attendance(self.employee, day)
+
+        record.refresh_from_db()
+        self.assertEqual(record.hours, approved_hours)
+        self.assertEqual(record.status, OvertimeRecord.STATUS_APPROVED)
+
+    def test_approval_snapshots_the_rate_so_a_raise_does_not_reprice_history(self):
+        day = date(2026, 4, 6)
+        self._worked(day, 20)
+        record = OvertimeRecord.objects.get(employee=self.employee, date=day)
+        record.job_performed = 'Night delivery'
+        record.save()
+        record.approve(self.admin)
+        self.assertEqual(record.hourly_rate, Decimal('120.00'))
+
+        self.employee.overtime_hourly_rate = Decimal('200.00')
+        self.employee.save()
+
+        record.refresh_from_db()
+        self.assertEqual(record.hourly_rate, Decimal('120.00'))
+
+    def test_a_day_without_overtime_leaves_no_record(self):
+        day = date(2026, 4, 7)
+        self._worked(day, 17)
+        self.assertFalse(
+            OvertimeRecord.objects.filter(employee=self.employee, date=day).exists()
+        )
+
+
+class OvertimeReportViewTests(TestCase):
+    """The report an organisation prints in order to pay people."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(username='payroll', password='pw-123456')
+        self.client.force_login(self.admin)
+        user = User.objects.create_user(username='ot2', first_name='Pay', last_name='Me')
+        self.employee = Employee.objects.create(
+            user=user, employee_id='OT100', join_date=date(2024, 1, 1),
+            overtime_hourly_rate=Decimal('50.00'),
+        )
+        self.record = OvertimeRecord.objects.create(
+            employee=self.employee, date=date(2026, 5, 4),
+            start_at=at(date(2026, 5, 4), 17), end_at=at(date(2026, 5, 4), 21),
+            hours=Decimal('4.00'), job_performed='Audit preparation',
+            hourly_rate=Decimal('50.00'),
+        )
+
+    def test_report_shows_hours_period_and_job_performed(self):
+        response = self.client.get('/attendance/overtime/?start=2026-05-01&end=2026-05-31')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Audit preparation')
+        self.assertContains(response, '17:00')
+        self.assertEqual(response.context['totals']['hours'], Decimal('4.00'))
+        self.assertEqual(response.context['totals']['amount'], Decimal('200.00'))
+
+    def test_approval_is_refused_while_the_job_is_undescribed(self):
+        self.record.job_performed = ''
+        self.record.save()
+
+        self.client.post('/attendance/overtime/%d/approve/' % self.record.id)
+
+        self.record.refresh_from_db()
+        self.assertEqual(self.record.status, OvertimeRecord.STATUS_PENDING)
+
+    def test_export_returns_a_spreadsheet(self):
+        response = self.client.get('/attendance/overtime/export/?start=2026-05-01&end=2026-05-31')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('spreadsheetml', response['Content-Type'])
+        self.assertIn('attachment;', response['Content-Disposition'])

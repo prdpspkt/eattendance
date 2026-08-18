@@ -1,4 +1,9 @@
-"""ZKTeco ADMS / WDMS push protocol server.
+"""ADMS / WDMS push protocol server.
+
+Works with any terminal that speaks ADMS/WDMS. The protocol originated with
+ZKTeco and is implemented by many vendors under both names (and sometimes as
+"Cloud Server" or "Push SDK" in a terminal's own menus), so nothing here
+assumes a particular manufacturer.
 
 In *pull* mode this project opens a TCP connection to each device (pyzk) and
 asks for its records. That needs the device to be reachable from the server, a

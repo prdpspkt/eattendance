@@ -1,11 +1,19 @@
 # E-Attendance Management System
 
-A comprehensive remote e-attendance management system using ZKTeco biometric devices with Django, featuring multi-device management, auto-sync, employee management, leave management, travel orders, and advanced reporting.
+A remote e-attendance management system for **any biometric terminal that speaks
+ADMS/WDMS**, built with Django. Multi-device management, real-time push sync,
+employee management, leave, travel orders and reporting.
+
+The push protocol originated with ZKTeco but is implemented by many
+manufacturers, sometimes labelled *Cloud Server*, *ADMS*, *WDMS* or *Push SDK*
+in the terminal's own menus. Nothing in the push path assumes a particular
+vendor. The optional *pull* transport is the exception: it speaks the ZK
+protocol on TCP 4370 via `pyzk`, so it is vendor-specific by nature.
 
 ## Features
 
 ### Core Features
-- **Multi-Device Management**: Support for multiple ZKTeco biometric devices
+- **Multi-Device Management**: Any number of ADMS/WDMS-capable terminals
 - **Two sync transports**: real-time **ADMS/WDMS push** (devices post to the server) or
   scheduled **pull** over the ZK SDK (server polls devices)
 - **Auto Data Sync**: Automatic attendance fetching every 5 minutes from all devices
@@ -26,7 +34,7 @@ A comprehensive remote e-attendance management system using ZKTeco biometric dev
 - **Backend**: Django 5.2, Django REST Framework
 - **Database**: SQLite (default), PostgreSQL (recommended for production)
 - **Task Queue**: Celery with Redis
-- **Device Communication**: pyzk library for ZKTeco devices
+- **Device Communication**: ADMS/WDMS over HTTP (any vendor); `pyzk` for optional ZK-protocol polling
 - **Reporting**: openpyxl (Excel), reportlab (PDF)
 - **Frontend**: Django Admin with Bootstrap 5
 
@@ -35,7 +43,7 @@ A comprehensive remote e-attendance management system using ZKTeco biometric dev
 ### Prerequisites
 - Python 3.8+
 - Redis server (for Celery)
-- ZKTeco biometric device(s) on the network
+- One or more biometric terminals supporting ADMS/WDMS (or reachable on the ZK protocol for pull mode)
 
 ### Step 1: Clone the repository
 ```bash
@@ -116,7 +124,7 @@ Examples:
 - Casual Leave (10 days/year, paid)
 - Unpaid Leave (0 days/year, unpaid)
 
-### 4. Add ZKTeco Devices
+### 4. Add Devices
 Navigate to: Admin → Devices → Add Device
 - Name: "Office Main Door"
 - IP Address: 192.168.1.201 (your device IP)
@@ -135,7 +143,7 @@ Navigate to: Admin → Employees → Add Employee
 - Enter Employee ID (must match device UID)
 - Assign Department
 - Set Join Date
-- Set Device UID (must match ZKTeco device user ID)
+- Set Device UID (must match the user ID on the terminal)
 
 ### 6. Assign Shifts to Employees
 Navigate to: Admin → Employee Shifts → Add Employee Shift
@@ -322,7 +330,7 @@ process_all_daily_attendance.delay(target_date=date.today())
 - **EmployeeShift**: Shift assignments
 
 ### Device Models
-- **Device**: ZKTeco biometric device configuration
+- **Device**: biometric terminal configuration
 
 ### Attendance Models
 - **Attendance**: Raw attendance from device

@@ -9,7 +9,9 @@ celery==5.6.2
 redis==7.4.0
 django-celery-beat==2.9.0
 
-# ZKTeco Device Communication
+# Pull-mode device communication. This library speaks the ZK protocol on TCP
+# 4370 and is therefore vendor-specific; push mode (ADMS/WDMS) needs no
+# library and works with any terminal supporting it.
 pyzk==0.9
 
 # Reporting

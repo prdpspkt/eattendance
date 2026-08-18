@@ -1,4 +1,4 @@
-"""Builders for ZKTeco PUSH SDK (ADMS/WDMS) commands.
+"""Builders for PUSH SDK (ADMS/WDMS) commands.
 
 In push mode the server cannot reach the device, so anything we want it to do
 is queued and collected on its next ``/iclock/getrequest`` poll. This module is
@@ -10,8 +10,8 @@ what the functions here return is the body.
 
 A caution that applies to everything below: **the exact syntax varies between
 firmware versions.** The forms used here are the common PUSH SDK 2.x ones and
-are what the ZKTeco documentation specifies, but a given terminal may want a
-different separator or ignore a field outright. The queued command's
+are what the published PUSH SDK documentation specifies, but a given terminal
+may want a different separator or ignore a field outright. The queued command's
 ``return_code`` tells you which happened - 0 (some firmware 1) means the device
 accepted it, anything else means it did not. Check Device Commands in the admin
 after queuing something new.

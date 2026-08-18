@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+
+{% block title %}Manual attendance entry - E-Attendance{% endblock %}
+{% block page-title %}Manual attendance{% endblock %}
+
+{% block auth_content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-header__title">Record attendance by hand</h2>
+        <p class="page-header__subtitle">
+            For a scan that never happened &mdash; a forgotten punch, a terminal outage, work off site.
+        </p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'attendance:overtime_report' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-clock-history" aria-hidden="true"></i> Overtime report
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                <span class="card-title">New entry</span>
+            </div>
+            <div class="card-body">
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill alert__icon" aria-hidden="true"></i>
+                        <div>{{ form.non_field_errors }}</div>
+                    </div>
+                {% endif %}
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="{{ form.employee.id_for_label }}" class="form-label">Employee</label>
+                        {{ form.employee }}
+                        {% if form.employee.errors %}<div class="text-danger small mt-1">{{ form.employee.errors }}</div>{% endif %}
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-sm-7">
+                            <label for="{{ form.timestamp.id_for_label }}" class="form-label">{{ form.timestamp.label }}</label>
+                            {{ form.timestamp }}
+                            <p class="form-text mb-0">{{ form.timestamp.help_text }}</p>
+                            {% if form.timestamp.errors %}<div class="text-danger small mt-1">{{ form.timestamp.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-sm-5">
+                            <label for="{{ form.punch_type.id_for_label }}" class="form-label">{{ form.punch_type.label }}</label>
+                            {{ form.punch_type }}
+                            {% if form.punch_type.errors %}<div class="text-danger small mt-1">{{ form.punch_type.errors }}</div>{% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.reason.id_for_label }}" class="form-label">
+                            Reason <span class="text-danger" aria-hidden="true">*</span>
+                        </label>
+                        {{ form.reason }}
+                        <p class="form-text mb-0">{{ form.reason.help_text }}</p>
+                        {% if form.reason.errors %}<div class="text-danger small mt-1">{{ form.reason.errors }}</div>{% endif %}
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg" aria-hidden="true"></i> Record entry
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-info-circle" aria-hidden="true"></i>
+                <span class="card-title">How this works</span>
+            </div>
+            <div class="card-body">
+                <p class="small mb-3">
+                    The entry is stored as a <strong>punch</strong>, exactly like one from a
+                    terminal, and the day is recalculated straight away &mdash; so working
+                    hours, lateness and overtime all update.
+                </p>
+                <p class="small mb-3">
+                    It is kept separately from device data and labelled in the attendance log
+                    with your name and the reason, permanently. Nothing here overwrites what a
+                    terminal reported.
+                </p>
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-lightbulb alert__icon" aria-hidden="true"></i>
+                    <div class="small">
+                        A day needs both a check in and a check out before hours can be
+                        calculated. If someone forgot to scan out, record the check out.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                <span class="card-title">Recent manual entries</span>
+            </div>
+            {% if recent_manual %}
+            <div class="card-body table-card p-0">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th scope="col">When</th>
+                                <th scope="col">Employee</th>
+                                <th scope="col">Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for punch in recent_manual %}
+                            <tr>
+                                <td class="mono small">
+                                    {{ punch.timestamp|date:"d M, H:i" }}
+                                    <div class="text-muted">{{ punch.get_punch_type_display }}</div>
+                                </td>
+                                <td>
+                                    {{ punch.employee.user.get_full_name }}
+                                    <div class="text-muted small">
+                                        {# Fall back to the username: an admin account often has
+                                           no first or last name set, and "by —" tells the reader nothing. #}
+                                        by {{ punch.recorded_by.get_full_name|default:punch.recorded_by.username|default:"—" }}
+                                    </div>
+                                </td>
+                                <td class="small">{{ punch.reason|truncatechars:60 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% else %}
+            <div class="card-body">
+                <div class="empty-state py-4">
+                    <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-pencil-square"></i></div>
+                    <p class="empty-state__title">No manual entries yet</p>
+                    <p class="empty-state__text mb-0">Corrections you record will be listed here.</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

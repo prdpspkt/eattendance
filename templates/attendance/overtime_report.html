@@ -1,0 +1,237 @@
+{% extends 'base.html' %}
+
+{% block title %}Overtime report - E-Attendance{% endblock %}
+{% block page-title %}Overtime report{% endblock %}
+
+{% block auth_content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-header__title">Overtime</h2>
+        <p class="page-header__subtitle">
+            Hours worked beyond the shift, when they were worked, and on what.
+        </p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'attendance:manual_attendance' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-pencil-square" aria-hidden="true"></i> Manual entry
+        </a>
+        <a href="{% url 'attendance:overtime_export' %}?{{ request.GET.urlencode }}"
+           class="btn btn-sm btn-primary">
+            <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Export to Excel
+        </a>
+    </div>
+</div>
+
+<form method="get" class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-sm-6 col-lg-2">
+                <label for="start" class="form-label">From</label>
+                <input type="date" class="form-control" id="start" name="start"
+                       value="{{ filters.start|date:'Y-m-d' }}">
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                <label for="end" class="form-label">To</label>
+                <input type="date" class="form-control" id="end" name="end"
+                       value="{{ filters.end|date:'Y-m-d' }}">
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <label for="employee" class="form-label">Employee</label>
+                <select class="form-select" id="employee" name="employee">
+                    <option value="">All employees</option>
+                    {% for employee in employees %}
+                        <option value="{{ employee.id }}" {% if filters.employee == employee.id|stringformat:"s" %}selected{% endif %}>
+                            {{ employee.user.get_full_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                <label for="department" class="form-label">Department</label>
+                <select class="form-select" id="department" name="department">
+                    <option value="">All</option>
+                    {% for department in departments %}
+                        <option value="{{ department.id }}" {% if filters.department == department.id|stringformat:"s" %}selected{% endif %}>
+                            {{ department.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">Any</option>
+                    {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-lg-1">
+                <button type="submit" class="btn btn-primary w-100">Apply</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="row row-cols-2 row-cols-lg-4 g-3 mb-4">
+    <div class="col">
+        <div class="metric">
+            <div>
+                <div class="metric__label">Total overtime</div>
+                <div class="metric__value">{{ totals.hours|floatformat:2 }}<span class="metric__unit">h</span></div>
+            </div>
+            <div class="metric__icon metric__icon--info" aria-hidden="true"><i class="bi bi-clock-history"></i></div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="metric">
+            <div>
+                <div class="metric__label">Records</div>
+                <div class="metric__value">{{ totals.count }}</div>
+            </div>
+            <div class="metric__icon metric__icon--neutral" aria-hidden="true"><i class="bi bi-list-ul"></i></div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="metric">
+            <div>
+                <div class="metric__label">Payable</div>
+                <div class="metric__value">
+                    {% if totals.amount is not None %}{{ totals.amount|floatformat:2 }}{% else %}&mdash;{% endif %}
+                </div>
+                {% if totals.unpriced %}
+                    <div class="metric__hint">{{ totals.unpriced }} without a rate</div>
+                {% endif %}
+            </div>
+            <div class="metric__icon metric__icon--success" aria-hidden="true"><i class="bi bi-cash-coin"></i></div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="metric">
+            <div>
+                <div class="metric__label">Needs a job description</div>
+                <div class="metric__value">{{ undescribed }}</div>
+                {% if undescribed %}
+                    <div class="metric__hint">Cannot be approved until filled in</div>
+                {% endif %}
+            </div>
+            <div class="metric__icon metric__icon--warning" aria-hidden="true"><i class="bi bi-exclamation-triangle"></i></div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-table" aria-hidden="true"></i>
+        <span class="card-title">
+            {{ filters.start|date:"d M Y" }} &ndash; {{ filters.end|date:"d M Y" }}
+        </span>
+    </div>
+
+    {% if records %}
+    <div class="card-body table-card p-0">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <caption class="visually-hidden">
+                    Overtime records with hours, period worked, job performed and payment status
+                </caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Employee</th>
+                        <th scope="col">Started</th>
+                        <th scope="col">Ended</th>
+                        <th scope="col" class="text-end">Hours</th>
+                        <th scope="col">Job performed</th>
+                        <th scope="col" class="text-end">Rate</th>
+                        <th scope="col" class="text-end">Amount</th>
+                        <th scope="col">Status</th>
+                        <th scope="col"><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                    <tr>
+                        <td class="mono tabular">{{ record.date|date:"d M Y" }}</td>
+                        <td>
+                            <strong>{{ record.employee.user.get_full_name }}</strong>
+                            <div class="text-muted small mono">{{ record.employee.employee_id }}</div>
+                        </td>
+                        <td class="mono tabular">{{ record.start_at|time:"H:i" }}</td>
+                        <td class="mono tabular">{{ record.end_at|time:"H:i" }}</td>
+                        <td class="text-end tabular"><strong>{{ record.hours|floatformat:2 }}</strong></td>
+                        <td>
+                            {% if record.needs_job_description %}
+                                {# Both an icon and words: the warning does not rely on colour. #}
+                                <span class="chip chip--warning">
+                                    <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>Not described
+                                </span>
+                            {% else %}
+                                <span class="small">{{ record.job_performed|truncatechars:70 }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end tabular">
+                            {% if record.hourly_rate is not None %}{{ record.hourly_rate|floatformat:2 }}{% else %}<span class="text-muted">&mdash;</span>{% endif %}
+                        </td>
+                        <td class="text-end tabular">
+                            {% if record.amount is not None %}{{ record.amount|floatformat:2 }}{% else %}<span class="text-muted">&mdash;</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if record.status == 'APPROVED' %}
+                                <span class="chip chip--success">Approved</span>
+                            {% elif record.status == 'REJECTED' %}
+                                <span class="chip chip--danger">Rejected</span>
+                            {% else %}
+                                <span class="chip chip--neutral">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <div class="d-flex gap-1 justify-content-end">
+                                <a href="{% url 'attendance:overtime_edit' record.id %}"
+                                   class="btn btn-sm btn-outline-secondary"
+                                   aria-label="Edit overtime for {{ record.employee.user.get_full_name }} on {{ record.date }}">
+                                    <i class="bi bi-pencil" aria-hidden="true"></i>
+                                </a>
+                                {% if record.status != 'APPROVED' and not record.needs_job_description %}
+                                <form method="post" action="{% url 'attendance:overtime_approve' record.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-success"
+                                            aria-label="Approve overtime for {{ record.employee.user.get_full_name }} on {{ record.date }}">
+                                        <i class="bi bi-check-lg" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th scope="row" colspan="4" class="text-end">Total</th>
+                        <td class="text-end tabular"><strong>{{ totals.hours|floatformat:2 }}</strong></td>
+                        <td></td>
+                        <td></td>
+                        <td class="text-end tabular">
+                            <strong>{% if totals.amount is not None %}{{ totals.amount|floatformat:2 }}{% else %}&mdash;{% endif %}</strong>
+                        </td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="card-body">
+        <div class="empty-state">
+            <div class="empty-state__icon" aria-hidden="true"><i class="bi bi-clock-history"></i></div>
+            <p class="empty-state__title">No overtime in this period</p>
+            <p class="empty-state__text mb-0">
+                Records are created automatically when someone works past their shift.
+                Widen the dates, or clear the filters.
+            </p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

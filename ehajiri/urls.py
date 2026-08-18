@@ -19,10 +19,11 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    # ZKTeco ADMS/WDMS push protocol. The path is fixed by the device firmware.
+    # ADMS/WDMS push protocol. The path is fixed by the device firmware.
     path('iclock/', include('devices.adms_urls')),
     path('', include('core.urls')),
     path('devices/', include('devices.urls')),
+    path('attendance/', include('attendance.urls')),
     path('leaves/', include('leaves.urls')),
     path('travel-orders/', include('travel_orders.urls')),
 ]

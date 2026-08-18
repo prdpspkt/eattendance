@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
@@ -8,8 +9,8 @@ from core.models import Employee, Shift
 from core.workweek import is_weekend
 from devices.models import Device
 
-# ZKTeco punch/status codes as reported by the device (both the pull SDK and
-# the ADMS push protocol use these values).
+# Punch/status codes as reported by the device. Shared by both transports:
+# the ADMS/WDMS push protocol and the ZK pull SDK use the same numbering.
 PUNCH_CHECK_IN = 0
 PUNCH_CHECK_OUT = 1
 PUNCH_BREAK_OUT = 2
@@ -49,17 +50,56 @@ def _day_bounds(day):
 
 
 class Attendance(models.Model):
-    """Attendance record from biometric device"""
+    """A single punch: from a terminal, or entered by an administrator.
+
+    Manual corrections are stored here as punches rather than as edits to the
+    daily summary, and the reason is deliberate: ``process_daily_attendance``
+    *rebuilds* ``DailyAttendance`` from punches every time a device pushes
+    data. A hand-edited summary would therefore be silently overwritten the
+    next time anyone in the office scanned a finger. A punch, on the other
+    hand, flows through the same pipeline as any other - de-duplicated,
+    rolled up, and visible in the log with an audit trail attached.
+    """
+    SOURCE_DEVICE = 'DEVICE'
+    SOURCE_MANUAL = 'MANUAL'
+    SOURCE_CHOICES = [
+        (SOURCE_DEVICE, 'Biometric device'),
+        (SOURCE_MANUAL, 'Entered by administrator'),
+    ]
+
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='attendances')
-    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='attendances')
+    # Null for a manual entry: there is no terminal behind it, and inventing
+    # one would put a fabricated device in the audit trail.
+    device = models.ForeignKey(
+        Device, on_delete=models.CASCADE, related_name='attendances',
+        blank=True, null=True,
+        help_text="The terminal that reported this punch. Empty for manual entries.",
+    )
     timestamp = models.DateTimeField(db_index=True)
     punch_type = models.IntegerField(
         default=PUNCH_CHECK_IN,
         choices=PUNCH_TYPE_CHOICES,
         help_text="0=Check in, 1=Check out, 2=Break out, 3=Break in, 4=Overtime in, 5=Overtime out",
     )
-    uid = models.IntegerField(help_text="Device UID")
+    uid = models.IntegerField(help_text="Device UID", blank=True, null=True)
     is_processed = models.BooleanField(default=False, help_text="Whether this record has been processed for calculations")
+
+    source = models.CharField(
+        max_length=10, choices=SOURCE_CHOICES, default=SOURCE_DEVICE, db_index=True,
+        help_text="Where this punch came from.",
+    )
+    reason = models.TextField(
+        blank=True, null=True,
+        help_text=(
+            "Why this punch was entered by hand - forgotten scan, device outage, "
+            "off-site work. Required for manual entries."
+        ),
+    )
+    recorded_by = models.ForeignKey(
+        'core.User', on_delete=models.SET_NULL, blank=True, null=True,
+        related_name='recorded_attendances',
+        help_text="The administrator who entered this manually.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -67,7 +107,36 @@ class Attendance(models.Model):
         verbose_name = 'Attendance'
         verbose_name_plural = 'Attendances'
         ordering = ['-timestamp']
+        # Device punches de-duplicate on this. It does NOT constrain manual
+        # entries: SQL treats NULLs as distinct, so a null device means the
+        # index never matches. That is the right trade - a device replaying its
+        # log must not create duplicates, whereas two manual punches at the same
+        # instant are a human decision an admin can see and delete.
         unique_together = ['employee', 'device', 'timestamp', 'uid']
+        constraints = [
+            # A manual punch with no explanation is an unexplained edit to
+            # someone's pay record. Enforced in the database so it holds for
+            # the admin, the shell and any future importer alike.
+            models.CheckConstraint(
+                condition=(
+                    ~models.Q(source='MANUAL')
+                    | (models.Q(reason__isnull=False) & ~models.Q(reason=''))
+                ),
+                name='manual_attendance_requires_reason',
+            ),
+        ]
+
+    @property
+    def is_manual(self):
+        return self.source == self.SOURCE_MANUAL
+
+    @property
+    def source_label(self):
+        """What to show in a log: the device name, or who keyed it in."""
+        if self.is_manual:
+            who = self.recorded_by.get_full_name() or self.recorded_by.username if self.recorded_by else 'an administrator'
+            return f'Manual entry by {who}'
+        return self.device.name if self.device else 'Unknown device'
 
     def __str__(self):
         return f"{self.employee.user.get_full_name()} - {self.timestamp}"
@@ -181,17 +250,66 @@ class Attendance(models.Model):
         daily.notes = "; ".join(notes) if notes else None
         daily.save()
 
+        cls._sync_overtime_record(employee, date, shift_end, check_in, check_out, daily)
+
         if punches:
             punch_qs.filter(is_processed=False).update(is_processed=True)
 
         return daily
+
+    @staticmethod
+    def _sync_overtime_record(employee, date, shift_end, check_in, check_out, daily):
+        """Keep the day's OvertimeRecord in step with the computed overtime.
+
+        Creates the record so somebody can write down what was worked on, and
+        refreshes the derived numbers while it is still pending. It never
+        writes ``job_performed`` - only a human knows that - and it never
+        touches an approved record, because approving is signing off on an
+        amount and a signed-off amount that silently moves is worthless.
+        """
+        overtime = daily.overtime_hours or 0
+        existing = OvertimeRecord.objects.filter(employee=employee, date=date).first()
+
+        if existing and existing.is_frozen:
+            return existing
+
+        if not overtime:
+            # No overtime any more. Drop the derived record unless somebody has
+            # already written on it - that text is theirs to remove, not ours.
+            if existing and existing.needs_job_description:
+                existing.delete()
+                return None
+            if existing:
+                existing.hours = 0
+                existing.save(update_fields=['hours', 'updated_at'])
+            return existing
+
+        # Where the overtime sat in the day. With the default policy
+        # (OVERTIME_AFTER_SHIFT_END_ONLY) it is the stretch past the shift's
+        # end; otherwise the whole worked period is the best window available.
+        start_at = shift_end if (shift_end and check_out and check_out > shift_end) else check_in
+        end_at = check_out
+        if not (start_at and end_at):
+            return existing
+
+        if existing:
+            existing.start_at = start_at
+            existing.end_at = end_at
+            existing.hours = overtime
+            existing.save(update_fields=['start_at', 'end_at', 'hours', 'updated_at'])
+            return existing
+
+        return OvertimeRecord.objects.create(
+            employee=employee, date=date,
+            start_at=start_at, end_at=end_at, hours=overtime,
+        )
 
     # -- helpers ----------------------------------------------------------
     @staticmethod
     def _derive_in_out(punches, notes):
         """First check-in and last check-out for the day.
 
-        Prefers the device's punch codes. Many ZKTeco deployments leave every
+        Prefers the device's punch codes. Many deployments leave every
         punch on the default code, so when the codes cannot separate in from
         out this falls back to first punch / last punch.
 
@@ -388,3 +506,114 @@ class Absence(models.Model):
 
     def __str__(self):
         return f"{self.employee.user.get_full_name()} - {self.date} ({self.status})"
+
+
+class OvertimeRecord(models.Model):
+    """Overtime worked on one day, with the job performed and what it is worth.
+
+    The daily rollup already computes *how much* overtime someone did. What it
+    cannot know is *what they were doing*, and an organisation that pays for
+    overtime has to put that on the payment voucher alongside the hours. So
+    this model is created automatically from the computed overtime and then
+    annotated by a human.
+
+    Two rules keep it honest as a payment document:
+
+    * ``job_performed`` is never touched by the rollup. Only a person writes it.
+    * Once a record is APPROVED it is frozen - later recomputation will not
+      move its hours or its rate. Approving is signing off on a number, and a
+      number that keeps changing afterwards is not a sign-off. If the
+      underlying punches genuinely change, an admin reopens the record.
+    """
+    STATUS_PENDING = 'PENDING'
+    STATUS_APPROVED = 'APPROVED'
+    STATUS_REJECTED = 'REJECTED'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_REJECTED, 'Rejected'),
+    ]
+
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE, related_name='overtime_records',
+    )
+    date = models.DateField(db_index=True, help_text="The working day this overtime belongs to.")
+
+    start_at = models.DateTimeField(help_text="When the overtime period began.")
+    end_at = models.DateTimeField(help_text="When it ended.")
+    hours = models.DecimalField(
+        max_digits=5, decimal_places=2,
+        help_text="Payable overtime, after the minimum and rounding rules in settings.",
+    )
+
+    job_performed = models.TextField(
+        blank=True, null=True,
+        help_text=(
+            "What was worked on during this period. Appears on the overtime "
+            "report; fill it in before approving."
+        ),
+    )
+
+    # The rate is copied onto the record rather than read from the employee at
+    # print time. Rates change, and a report of last quarter's overtime must
+    # not silently re-price itself when someone gets a raise.
+    hourly_rate = models.DecimalField(
+        max_digits=10, decimal_places=2, blank=True, null=True,
+        help_text="Overtime rate applied to these hours. Copied from the employee when approved.",
+    )
+
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    approved_by = models.ForeignKey(
+        'core.User', on_delete=models.SET_NULL, blank=True, null=True,
+        related_name='approved_overtime_records',
+    )
+    approved_at = models.DateTimeField(blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'overtime_records'
+        verbose_name = 'Overtime Record'
+        verbose_name_plural = 'Overtime Records'
+        ordering = ['-date', 'employee']
+        # One derived record per employee per day. A day with two separate
+        # overtime blocks is a single payable period as far as the rollup is
+        # concerned; splitting it is an admin's decision, made by editing.
+        unique_together = ['employee', 'date']
+        indexes = [models.Index(fields=['status', 'date'])]
+
+    def __str__(self):
+        return f"{self.employee.user.get_full_name()} - {self.date} ({self.hours}h)"
+
+    @property
+    def is_frozen(self):
+        """Approved records are payment documents and stop tracking the rollup."""
+        return self.status == self.STATUS_APPROVED
+
+    @property
+    def amount(self):
+        """What these hours are worth, or None when no rate has been set."""
+        if self.hourly_rate is None or self.hours is None:
+            return None
+        return (self.hours * self.hourly_rate).quantize(Decimal('0.01'))
+
+    @property
+    def needs_job_description(self):
+        """Flagged in the UI: hours with nothing to justify them."""
+        return not (self.job_performed or '').strip()
+
+    def approve(self, user, rate=None):
+        """Sign the record off, snapshotting the rate that applies to it."""
+        self.status = self.STATUS_APPROVED
+        self.approved_by = user
+        self.approved_at = timezone.now()
+        if rate is not None:
+            self.hourly_rate = rate
+        elif self.hourly_rate is None:
+            self.hourly_rate = self.employee.overtime_hourly_rate
+        self.save(update_fields=[
+            'status', 'approved_by', 'approved_at', 'hourly_rate', 'updated_at',
+        ])
+        return self

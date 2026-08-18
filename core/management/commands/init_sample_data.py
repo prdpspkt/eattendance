@@ -153,6 +153,6 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('\nSample data initialized successfully!'))
         self.stdout.write('\nNext steps:')
         self.stdout.write('1. Create a superuser: python manage.py createsuperuser')
-        self.stdout.write('2. Add ZKTeco devices via admin panel')
+        self.stdout.write('2. Add biometric devices via admin panel')
         self.stdout.write('3. Create users and employees')
         self.stdout.write('4. Assign shifts to employees')

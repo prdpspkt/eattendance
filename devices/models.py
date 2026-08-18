@@ -25,7 +25,7 @@ class EmployeeDevice(models.Model):
 
 
 class Device(models.Model):
-    """A ZKTeco biometric terminal, reached by either transport.
+    """A biometric terminal, reached by either transport.
 
     How a device is identified depends on how it talks to us:
 
@@ -576,7 +576,7 @@ class DeviceCommand(models.Model):
             return_code = None
         self.return_code = return_code
         self.response = (response or '')[:200] or None
-        # ZKTeco devices report 0 (and some firmware 1) for success.
+        # Devices report 0 (and some firmware 1) for success.
         self.status = self.STATUS_DONE if return_code in (0, 1) else self.STATUS_FAILED
         self.completed_at = timezone.now()
         self.save(update_fields=['return_code', 'response', 'status', 'completed_at'])

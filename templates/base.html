@@ -95,6 +95,18 @@
                             </a>
                         </li>
                         <li>
+                            <a class="app-nav__link" href="{% url 'attendance:overtime_report' %}"
+                               {% if request.resolver_match.url_name == 'overtime_report' or request.resolver_match.url_name == 'overtime_edit' %}aria-current="page"{% endif %}>
+                                <i class="bi bi-clock-history" aria-hidden="true"></i> Overtime
+                            </a>
+                        </li>
+                        <li>
+                            <a class="app-nav__link" href="{% url 'attendance:manual_attendance' %}"
+                               {% if request.resolver_match.url_name == 'manual_attendance' %}aria-current="page"{% endif %}>
+                                <i class="bi bi-pencil-square" aria-hidden="true"></i> Manual entry
+                            </a>
+                        </li>
+                        <li>
                             <a class="app-nav__link" href="{% url 'devices:employee_management' %}"
                                {% if request.resolver_match.url_name == 'employee_management' %}aria-current="page"{% endif %}>
                                 <i class="bi bi-people" aria-hidden="true"></i> Employees

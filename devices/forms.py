@@ -103,7 +103,8 @@ class DeviceForm(forms.ModelForm):
                     'ip_address',
                     'Required for pull mode: the server needs an address to connect to.',
                 )
-            # Fall back to the documented ZKTeco defaults rather than failing.
+            # Fall back to the ZK pull-SDK defaults rather than failing. These
+            # are specific to that protocol, which is what pull mode speaks.
             cleaned.setdefault('port', 4370)
             cleaned['port'] = cleaned.get('port') or 4370
             cleaned['password'] = cleaned.get('password') if cleaned.get('password') is not None else 0

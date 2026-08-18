@@ -104,6 +104,14 @@ class Employee(models.Model):
         ],
         default='ACTIVE'
     )
+    # Overtime pay rate. The default applied when an overtime record is
+    # approved; the record keeps its own copy from that moment, so raising
+    # someone's rate never re-prices overtime that was already signed off.
+    overtime_hourly_rate = models.DecimalField(
+        max_digits=10, decimal_places=2, blank=True, null=True,
+        help_text="Pay rate per overtime hour. Leave empty if overtime is unpaid or rated elsewhere.",
+    )
+
     # Device UID for biometric device
     device_uid = models.IntegerField(unique=True, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)

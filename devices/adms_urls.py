@@ -1,4 +1,4 @@
-"""URLs for the ZKTeco ADMS/WDMS push protocol.
+"""URLs for the ADMS/WDMS push protocol.
 
 Mounted at ``/iclock/`` by the project URLconf. The paths are fixed by the
 device firmware, so they cannot be renamed. Devices are identified by the SN
