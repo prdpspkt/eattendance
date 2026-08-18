@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.http import HttpResponse
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout, update_session_auth_hash, authenticate, login
@@ -743,3 +744,16 @@ def shift_delete(request, shift_id):
 
     context = {'shift': shift}
     return render(request, 'core/shift_confirm_delete.html', context)
+
+
+def healthz(request):
+    """Liveness probe, and the baseline for load testing.
+
+    Deliberately does nothing: no database, no session, no template. It
+    measures what the stack costs before any application work - the WSGI
+    server, middleware chain and URL resolution - which is the ceiling every
+    other endpoint is measured against. A benchmark of '/' instead measures a
+    404 page, and a benchmark of '/dashboard/' measures a redirect to the login
+    form unless the load generator carries a session cookie.
+    """
+    return HttpResponse('ok', content_type='text/plain')

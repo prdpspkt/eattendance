@@ -16,6 +16,10 @@ pyzk==0.9
 openpyxl==3.1.5
 reportlab==4.4.10
 
+# WSGI server. Configured by deploy/gunicorn.conf.py; the default
+# invocation runs a single worker, which is not what this box wants.
+gunicorn==23.0.0
+
 # Static file serving (works without nginx in front)
 whitenoise==6.12.0
 

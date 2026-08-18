@@ -370,10 +370,34 @@ The system is designed to support REST API. To enable:
 
 ## Production Deployment
 
+See **[deploy/PERFORMANCE.md](deploy/PERFORMANCE.md)** for how this deployment
+is sized (4 cores / 500 MB ARM), what throughput to expect from which endpoint,
+and how to load test it without measuring the wrong thing.
+
+### Environment
+
+`DEBUG` defaults to **off**; set `DJANGO_DEBUG=1` for local development. Set
+`DJANGO_SECRET_KEY` in the service environment — the fallback in `settings.py`
+is a development value and is in git.
+
+```bash
+python -c "from django.core.management.utils import get_random_secret_key as k; print(k())"
+```
+
+`deploy/systemd/attendance.service` lists the environment the server expects.
+
 ### Database
-Switch to PostgreSQL:
+
+SQLite is kept deliberately on the small ARM host: PostgreSQL would claim
+150–250 MB of a 500 MB budget for itself, and this workload fits SQLite once WAL
+mode and the pragmas in `settings.py` are in place. Those are applied
+automatically — no action needed beyond letting the app open the database once.
+
+PostgreSQL becomes the right answer when you outgrow one writer: many
+simultaneous *writing* users, or a second app server. Then:
+
 ```python
-# settings.py
+# via environment, not by editing settings.py
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -385,6 +409,10 @@ DATABASES = {
     }
 }
 ```
+
+If you do move, raise `WEB_CONCURRENCY` to `2 × cores + 1`: workers then spend
+real time waiting on the network, which the one-worker-per-core setting assumes
+they do not.
 
 ### Static Files
 
@@ -425,14 +453,42 @@ Keep media *outside* `STATIC_ROOT`: `collectstatic --clear` deletes everything
 in that directory, which would take uploaded documents with it.
 
 ### Web Server
-Use Gunicorn with Nginx:
+
+Gunicorn behind nginx. **Always start it with the config file:**
+
 ```bash
-pip install gunicorn
-gunicorn ehajiri.wsgi:application
+gunicorn -c deploy/gunicorn.conf.py ehajiri.wsgi:application
 ```
+
+Plain `gunicorn ehajiri.wsgi:application` runs a **single** worker that serves
+one request at a time regardless of how many cores the machine has — the usual
+explanation for a benchmark reporting tens of requests per second. The config
+file sets one worker per core, threads, `preload_app` for shared memory, and
+the connection backlog; see `deploy/gunicorn.conf.py`, where every value is
+commented and overridable from the environment.
+
+Install it as a service with `deploy/systemd/attendance.service`, which pins the
+worker count and sets a memory ceiling so a runaway worker is killed by its
+cgroup rather than by the OOM killer picking on sshd:
+
+```bash
+sudo cp deploy/systemd/attendance.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now attendance
+```
+
+nginx config: `deploy/nginx/attendance.thedeepit.com.conf`. The comment block at
+the end lists the host-wide `nginx.conf` settings it assumes (worker counts,
+connection limits, buffered access logging).
 
 ### Celery as Service
 Use supervisor or systemd to run Celery worker and beat as services.
+
+Once a worker is genuinely running, set `ADMS_PROCESS_ON_PUSH=0` in the service
+environment. The daily-summary rollup is the most expensive part of handling a
+device push, and it does not need to happen inside the device's own request —
+but leave the setting at `1` if no worker is running, or pushed punches will
+never be rolled up.
 
 ## Contributing
 

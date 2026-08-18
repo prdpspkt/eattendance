@@ -24,8 +24,10 @@ makes the device retry later, which is what we want when we are not ready to
 accept its data, because the device keeps the records in its own memory.
 """
 import logging
+import time
 
 from django.conf import settings
+from django.core.cache import cache
 from django.http import HttpResponse, HttpResponseForbidden
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -64,6 +66,48 @@ def _timezone_offset_hours():
     return int(hours) if hours == int(hours) else round(hours, 2)
 
 
+def device_cache_key(serial):
+    return f'adms:device:{serial}'
+
+
+def _last_seen_cache_key(device_id):
+    return f'adms:seen:{device_id}'
+
+
+def _touch_last_seen(device, extra_updates=()):
+    """Record that the device just contacted us, without writing every time.
+
+    Terminals poll /iclock/getrequest every few seconds. Persisting last_seen
+    on each contact turns a read-only poll into a database write, and SQLite
+    serialises writers - so a handful of chatty devices can occupy the single
+    write lock doing nothing but heartbeats, starving the punch inserts that
+    actually matter.
+
+    The write is therefore rate limited per device to
+    ADMS_LAST_SEEN_WRITE_SECONDS. The stored value lags reality by at most
+    that much, which the online/offline display already tolerates: it treats a
+    device as online for ADMS_OFFLINE_AFTER_SECONDS (180s by default) after
+    last_seen, an order of magnitude more slack than the 30s write interval.
+
+    ``extra_updates`` forces a write regardless, for fields that must not be
+    dropped (push_enabled on a device's first contact).
+    """
+    now = timezone.now()
+    device.last_seen = now
+    updates = ['last_seen', *extra_updates]
+
+    if not extra_updates:
+        interval = getattr(settings, 'ADMS_LAST_SEEN_WRITE_SECONDS', 30)
+        if interval:
+            key = _last_seen_cache_key(device.pk)
+            written_at = cache.get(key)
+            if written_at is not None and (time.monotonic() - written_at) < interval:
+                return
+            cache.set(key, time.monotonic(), interval * 4)
+
+    device.save(update_fields=updates)
+
+
 def get_device(request):
     """Resolve the device behind a request by serial number.
 
@@ -73,11 +117,25 @@ def get_device(request):
     up in the admin for approval; its data is refused until someone activates
     it. Refusing with a non-OK response matters: the device keeps the records
     and retries, so nothing is lost while approval is pending.
+
+    The lookup is cached for ADMS_DEVICE_CACHE_SECONDS because it is the one
+    query every ADMS request must make before it can do anything else. The
+    cache is invalidated whenever a Device is saved (see devices/signals.py),
+    so an activation or a rename takes effect immediately in the worker that
+    made the change; with the default local-memory cache the other workers pick
+    it up when their own copy expires.
     """
     serial = (request.GET.get('SN') or request.GET.get('sn') or '').strip()
     if not serial:
         logger.warning("ADMS request without SN from %s", _client_ip(request))
         return None, HttpResponseForbidden('SN required')
+
+    cache_seconds = getattr(settings, 'ADMS_DEVICE_CACHE_SECONDS', 60)
+    cache_key = device_cache_key(serial)
+
+    device = cache.get(cache_key) if cache_seconds else None
+    if device is not None:
+        return _check_active(device)
 
     device = Device.objects.filter(serial_number=serial).first()
 
@@ -111,18 +169,26 @@ def get_device(request):
             serial, _client_ip(request),
         )
 
+    if cache_seconds:
+        cache.set(cache_key, device, cache_seconds)
+
+    return _check_active(device)
+
+
+def _check_active(device):
+    """Gate a resolved device on its approval flag and stamp last_seen."""
     if not device.is_active:
-        device.last_seen = timezone.now()
-        device.save(update_fields=['last_seen'])
+        _touch_last_seen(device)
         # 401 rather than OK: the device holds its records and retries.
         return None, HttpResponse('Device not activated', status=401, content_type='text/plain')
 
-    updates = ['last_seen']
-    device.last_seen = timezone.now()
     if not device.push_enabled:
         device.push_enabled = True
-        updates.append('push_enabled')
-    device.save(update_fields=updates)
+        # Forced write: this one must not be dropped by the heartbeat throttle,
+        # or the device would never be marked as pushing.
+        _touch_last_seen(device, extra_updates=['push_enabled'])
+    else:
+        _touch_last_seen(device)
 
     return device, None
 

@@ -1,8 +1,15 @@
 from django.urls import path
+from django.views.generic import RedirectView
 from . import views
 from django.contrib.auth import views as auth_views
 
 urlpatterns = [
+    # The site root was previously unrouted, so '/' answered 404 - which is
+    # both a poor landing page and a misleading thing to point a load test at.
+    path('', RedirectView.as_view(pattern_name='dashboard', permanent=False), name='home'),
+    # Cheap liveness probe with no database or template work. Use this as the
+    # baseline when load testing; see deploy/PERFORMANCE.md.
+    path('healthz/', views.healthz, name='healthz'),
     path('login/', views.custom_login, name='login'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('profile/', views.profile, name='profile'),

@@ -1,0 +1,83 @@
+# E-Attendance gunicorn service, sized for a 4-core / 500 MB ARM host.
+#
+# Install:
+#   sudo cp deploy/systemd/attendance.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now attendance
+#
+# Check what it is actually using:
+#   systemctl status attendance
+#   systemd-cgtop -m
+
+[Unit]
+Description=E-Attendance (gunicorn)
+After=network.target
+Wants=redis-server.service
+
+[Service]
+Type=notify
+User=deepit
+Group=deepit
+WorkingDirectory=/home/deepit/eattendance
+
+# --- application settings -------------------------------------------------
+# DEBUG must be off. Beyond leaking internals, it makes Django retain every
+# SQL query it runs for the life of the process.
+Environment=DJANGO_DEBUG=0
+Environment=DJANGO_SETTINGS_MODULE=ehajiri.settings
+Environment=SITE_DOMAIN=attendance.thedeepit.com
+Environment=STATIC_ROOT=/var/www/attendance.thedeepit.com
+Environment=MEDIA_ROOT=/var/www/attendance.thedeepit.com-media
+Environment=LOG_LEVEL=WARNING
+# Generate once with:
+#   python -c "from django.core.management.utils import get_random_secret_key as k; print(k())"
+# and keep it out of git. EnvironmentFile is the better home for it:
+# Environment=DJANGO_SECRET_KEY=...
+EnvironmentFile=-/etc/default/attendance
+
+# Set this once the real terminals are enrolled, so unknown serial numbers on
+# the public /iclock/ endpoint are refused outright.
+# Environment=ADMS_AUTO_REGISTER_DEVICES=0
+
+# Share the cache and the device records across workers, and let sessions be
+# looked up without a database hit. Only takes effect if redis is running;
+# without it the app falls back to a per-process local cache and still works.
+Environment=REDIS_URL=redis://127.0.0.1:6379/1
+
+# With a Celery worker running, hand the daily-summary rollup to it instead of
+# doing it inside the device's own request - it is the single most expensive
+# part of handling a push. Leave this at 1 if no worker is running, or pushed
+# punches will never be rolled up.
+# Environment=ADMS_PROCESS_ON_PUSH=0
+
+# --- process sizing -------------------------------------------------------
+Environment=WEB_CONCURRENCY=4
+Environment=GUNICORN_THREADS=4
+
+ExecStart=/home/deepit/eattendance/.venv/bin/gunicorn \
+    -c /home/deepit/eattendance/deploy/gunicorn.conf.py \
+    ehajiri.wsgi:application
+
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+Restart=always
+RestartSec=2
+
+# --- resource limits ------------------------------------------------------
+# A hard ceiling below the machine's 500 MB, so a runaway worker is killed by
+# the cgroup rather than by the kernel OOM killer picking a victim at random -
+# which on a box this size is as likely to be redis or sshd as gunicorn.
+# MemoryHigh throttles and reclaims first, giving the process a chance to
+# recover before MemoryMax kills it.
+MemoryHigh=320M
+MemoryMax=400M
+
+# File descriptors. Each in-flight connection needs one, and the default
+# soft limit of 1024 is reached well before the app's actual capacity.
+LimitNOFILE=65535
+
+# Tasks: workers x threads plus overhead, with room to spare.
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

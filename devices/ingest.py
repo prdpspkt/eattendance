@@ -102,45 +102,68 @@ def record_punch(device, device_uid, timestamp, punch_type=0, uid=None, user_nam
     """Store a single punch.
 
     Returns one of: 'created', 'duplicate', 'unlinked', 'invalid'.
+
+    A thin wrapper over :func:`record_punches` so there is exactly one
+    implementation of de-duplication and employee resolution to keep correct.
     """
-    from attendance.models import Attendance
+    counts, _touched = record_punches(device, [{
+        'device_uid': device_uid,
+        'timestamp': timestamp,
+        'punch_type': punch_type,
+        'uid': uid,
+        'user_name': user_name,
+    }])
+    for outcome, count in counts.items():
+        if count:
+            return outcome
+    return 'invalid'
 
-    if timestamp is None:
-        return 'invalid'
 
-    device_uid = coerce_device_uid(device_uid)
-    if device_uid is None:
-        return 'invalid'
+def _resolve_enrollments(device, device_uids, names):
+    """Map every device UID in a batch to its enrolment, in two queries.
 
-    enrollment = resolve_enrollment(device, device_uid, user_name=user_name)
-    if enrollment is None or enrollment.employee_id is None:
-        # Enrolment exists on the device but is not linked to an employee yet.
-        return 'unlinked'
+    Resolving them one at a time is what the per-punch path used to do, which
+    on a 60-punch upload meant 60 round trips before a single row was written.
+    """
+    from .models import EmployeeDevice
 
-    # De-duplicate on (employee, device, timestamp). The record id a device
-    # assigns differs between the pull and push transports, so it must not take
-    # part in the duplicate check or the same punch would land twice.
-    exists = Attendance.objects.filter(
-        employee_id=enrollment.employee_id,
-        device=device,
-        timestamp=timestamp,
-    ).exists()
-    if exists:
-        return 'duplicate'
+    enrollments = {
+        enrollment.device_uid: enrollment
+        for enrollment in EmployeeDevice.objects.filter(
+            device=device, device_uid__in=device_uids
+        ).only('id', 'device_uid', 'employee_id', 'user_name')
+    }
 
-    try:
-        punch_type = int(punch_type)
-    except (TypeError, ValueError):
-        punch_type = 0
+    missing = [uid for uid in device_uids if uid not in enrollments]
+    if not missing:
+        return enrollments
 
-    Attendance.objects.create(
-        employee_id=enrollment.employee_id,
-        device=device,
-        timestamp=timestamp,
-        punch_type=punch_type,
-        uid=uid if uid is not None else device_uid,
+    # Unknown UIDs become unlinked enrolments rather than being dropped, so
+    # punches are not silently lost and an admin can attach the person later.
+    # ignore_conflicts covers the race where two workers handle uploads from
+    # the same newly enrolled user at once; the follow-up query then reads
+    # back whichever row won, so both requests end up with a usable enrolment.
+    EmployeeDevice.objects.bulk_create(
+        [
+            EmployeeDevice(
+                device=device,
+                device_uid=uid,
+                user_name=names.get(uid) or f'User {uid}',
+            )
+            for uid in missing
+        ],
+        ignore_conflicts=True,
     )
-    return 'created'
+    logger.info(
+        "Created %s unlinked enrollment(s) on device %s: %s",
+        len(missing), device, missing,
+    )
+    for enrollment in EmployeeDevice.objects.filter(
+        device=device, device_uid__in=missing
+    ).only('id', 'device_uid', 'employee_id', 'user_name'):
+        enrollments[enrollment.device_uid] = enrollment
+
+    return enrollments
 
 
 def record_punches(device, punches):
@@ -149,32 +172,108 @@ def record_punches(device, punches):
     ``punches`` is an iterable of dicts with keys: device_uid, timestamp,
     punch_type, uid (optional), user_name (optional).
 
-    Returns ``(counts, touched)`` where counts tallies the outcomes and
-    touched is the set of ``(employee_id, date)`` pairs that changed, ready to
-    be re-processed into daily summaries.
+    Returns ``(counts, touched)`` where counts tallies the outcomes and touched
+    is the set of ``(employee_id, date)`` pairs that changed, ready to be
+    re-processed into daily summaries.
+
+    The whole batch costs a fixed handful of queries rather than three per
+    punch. That matters more here than the query count alone suggests: this
+    database has a single writer, so time spent inside the insert loop is time
+    every other request that needs to write is blocked.
     """
+    from attendance.models import Attendance
+
     counts = {'created': 0, 'duplicate': 0, 'unlinked': 0, 'invalid': 0}
     touched = set()
 
+    # --- normalise, dropping anything unusable --------------------------
+    cleaned = []
+    names = {}
     for punch in punches:
-        outcome = record_punch(
-            device,
-            punch.get('device_uid'),
-            punch.get('timestamp'),
-            punch_type=punch.get('punch_type', 0),
-            uid=punch.get('uid'),
-            user_name=punch.get('user_name'),
-        )
-        counts[outcome] += 1
+        timestamp = punch.get('timestamp')
+        device_uid = coerce_device_uid(punch.get('device_uid'))
+        if timestamp is None or device_uid is None:
+            counts['invalid'] += 1
+            continue
+        try:
+            punch_type = int(punch.get('punch_type', 0) or 0)
+        except (TypeError, ValueError):
+            punch_type = 0
+        if punch.get('user_name'):
+            names.setdefault(device_uid, punch['user_name'])
+        cleaned.append((device_uid, timestamp, punch_type, punch.get('uid')))
 
-        if outcome == 'created':
-            enrollment = resolve_enrollment(
-                device, coerce_device_uid(punch.get('device_uid')), create_unlinked=False
-            )
-            if enrollment and enrollment.employee_id:
-                local_date = timezone.localtime(punch['timestamp']).date() \
-                    if settings.USE_TZ else punch['timestamp'].date()
-                touched.add((enrollment.employee_id, local_date))
+    if not cleaned:
+        return counts, touched
+
+    enrollments = _resolve_enrollments(
+        device, list({uid for uid, _, _, _ in cleaned}), names
+    )
+
+    # Backfill a name the device has now told us about, for enrolments that
+    # were created before it did. One query per newly named enrolment, but only
+    # ever on the first upload that carries the name.
+    for device_uid, name in names.items():
+        enrollment = enrollments.get(device_uid)
+        if enrollment is not None and not enrollment.user_name:
+            enrollment.user_name = name
+            enrollment.save(update_fields=['user_name'])
+
+    # --- de-duplicate ----------------------------------------------------
+    # Against the batch itself first (a device can repeat a record within one
+    # upload), then against what is already stored. De-duplication is on
+    # (employee, device, timestamp): the record id a device assigns differs
+    # between the pull and push transports, so it must not take part or the
+    # same punch would land twice.
+    candidates = []
+    seen = set()
+    for device_uid, timestamp, punch_type, uid in cleaned:
+        enrollment = enrollments.get(device_uid)
+        if enrollment is None or enrollment.employee_id is None:
+            # Enrolled on the device but not linked to an employee yet.
+            counts['unlinked'] += 1
+            continue
+        key = (enrollment.employee_id, timestamp)
+        if key in seen:
+            counts['duplicate'] += 1
+            continue
+        seen.add(key)
+        candidates.append((enrollment.employee_id, timestamp, punch_type, uid, device_uid))
+
+    if not candidates:
+        return counts, touched
+
+    existing = set(
+        Attendance.objects.filter(
+            device=device,
+            employee_id__in={employee_id for employee_id, _, _, _, _ in candidates},
+            timestamp__in={timestamp for _, timestamp, _, _, _ in candidates},
+        ).values_list('employee_id', 'timestamp')
+    )
+
+    to_create = []
+    for employee_id, timestamp, punch_type, uid, device_uid in candidates:
+        if (employee_id, timestamp) in existing:
+            counts['duplicate'] += 1
+            continue
+        to_create.append(Attendance(
+            employee_id=employee_id,
+            device=device,
+            timestamp=timestamp,
+            punch_type=punch_type,
+            uid=uid if uid is not None else device_uid,
+        ))
+        local_date = (
+            timezone.localtime(timestamp).date() if settings.USE_TZ else timestamp.date()
+        )
+        touched.add((employee_id, local_date))
+
+    if to_create:
+        # ignore_conflicts guards the unique constraint against a concurrent
+        # upload of the same punches; without it one racing duplicate would
+        # abort the entire batch.
+        Attendance.objects.bulk_create(to_create, ignore_conflicts=True)
+        counts['created'] += len(to_create)
 
     return counts, touched
 

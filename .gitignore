@@ -1,6 +1,9 @@
 .claude
 .venv
 db.sqlite3
+# WAL mode leaves these alongside the database while it is in use.
+db.sqlite3-wal
+db.sqlite3-shm
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
