@@ -24,18 +24,26 @@ die() { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
 [ -x "$PY" ] || die "no virtualenv at $REPO/.venv - create it with: python3 -m venv .venv"
 
+# Only ever look at gunicorn processes belonging to THIS project. The host also
+# runs deepit.service, an unrelated Django site out of /srv/deepit on port 8000,
+# and matching on "gunicorn" alone counts its processes too - which produced a
+# confusing false alarm about a competing instance. Match on this repo's path.
+ours() { pgrep -f "gunicorn" 2>/dev/null | xargs -r ps -o pid=,cmd= -p 2>/dev/null | grep -F "$REPO" || true; }
+ours_pids() { ours | awk '{print $1}'; }
+ours_count() { ours | grep -c . || true; }
+
 # ---------------------------------------------------------------------------
 say "Checking for stale gunicorn processes"
-# The trap this catches: an older unit, or a hand-started process, still bound
-# to the port. The deploy appears to succeed while the old code serves every
-# request - which is exactly what happened here, and it silently halved a
-# benchmark before anyone noticed.
-if pgrep -f "gunicorn" >/dev/null 2>&1; then
-    if pgrep -f "gunicorn" | xargs -r ps -o cmd= -p 2>/dev/null | grep -q -- "--workers\|--access-logfile"; then
-        warn "a gunicorn is running that was NOT started from deploy/gunicorn.conf.py:"
-        pgrep -f gunicorn | xargs -r ps -o pid=,cmd= -p 2>/dev/null | sed 's/^/    /'
-        warn "systemctl stop it (and disable it) before continuing, or it will fight for port $BIND_PORT"
-    fi
+# The trap this catches: an older unit, or a hand-started process from THIS
+# project, still bound to the port. The deploy appears to succeed while the old
+# code serves every request - which is exactly what happened here, and it
+# silently halved a benchmark before anyone noticed.
+#
+# Other gunicorns on the host are none of our business; see ours() above.
+if ours | grep -q -- "--workers\|--access-logfile"; then
+    warn "a gunicorn from this project is running WITHOUT deploy/gunicorn.conf.py:"
+    ours | grep -- "--workers\|--access-logfile" | sed 's/^/    /'
+    warn "systemctl stop it (and disable it) before continuing, or it will fight for port $BIND_PORT"
 fi
 
 # ---------------------------------------------------------------------------
@@ -98,13 +106,14 @@ case "$freqs" in
     *400000*) warn "cores still parked at 400 MHz - governor did not apply"; fail=1 ;;
 esac
 
-workers=$(pgrep -c -f "gunicorn" || echo 0)
+# Count only this project's processes - the host runs other Django sites.
+workers=$(ours_count)
 expected=$(( ${WEB_CONCURRENCY:-8} + 1 ))
 echo "  gunicorn procs  : $workers (expected $expected: master + workers)"
-[ "$workers" -eq "$expected" ] || { warn "unexpected process count - check for a competing instance"; fail=1; }
+[ "$workers" -eq "$expected" ] || { warn "unexpected process count for this project - check for a competing instance"; fail=1; }
 
-if pgrep -f gunicorn | xargs -r ps -o cmd= -p 2>/dev/null | grep -q -- "--workers"; then
-    warn "a process is still running the OLD command line (--workers ...)"
+if ours | grep -q -- "--workers"; then
+    warn "a process from this project is still running the OLD command line (--workers ...)"
     fail=1
 fi
 
@@ -112,7 +121,7 @@ code=$(curl -s -o /dev/null -w '%{http_code}' "http://$BIND_HOST:$BIND_PORT/heal
 echo "  /healthz/       : HTTP $code"
 [ "$code" = "200" ] || { warn "health check failed - see: journalctl -u attendance -n 50"; fail=1; }
 
-rss=$(pgrep -f gunicorn | xargs -r ps -o rss= -p 2>/dev/null | awk '{sum+=$1} END {printf "%.0f", sum/1024}')
+rss=$(ours_pids | xargs -r ps -o rss= -p 2>/dev/null | awk '{sum+=$1} END {printf "%.0f", sum/1024}')
 echo "  gunicorn RSS    : ${rss:-?} MB total (sums shared pages, so an overestimate)"
 free -m | awk '/^Mem:/ {printf "  memory          : %s MB used, %s MB available of %s MB\n", $3, $7, $2}'
 

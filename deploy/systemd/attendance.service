@@ -109,9 +109,18 @@ Restart=always
 RestartSec=2
 
 # --- resource limits ------------------------------------------------------
-# The box has 655 MB total and NO SWAP, of which the OS and sshd use ~110 MB.
-# Eight preloaded workers should land somewhere near 300-380 MB depending on
-# how much stays shared after fork.
+# The box has 655 MB total and NO SWAP, and this service is not alone on it:
+#
+#   OS, sshd, journald         ~110 MB
+#   deepit.service             ~90 MB   (the thedeepit.com welcome site,
+#                                        /srv/deepit, gunicorn on port 8000)
+#   this service               the rest
+#
+# That leaves roughly 450 MB, so the ceiling below is set under it rather than
+# at the whole-machine figure. Eight preloaded workers should land near
+# 200-300 MB depending on how much stays shared after fork.
+#
+# If deepit.service is ever retired, MemoryMax can go up to about 500M.
 #
 # MemoryHigh throttles the cgroup and reclaims first, giving it a chance to
 # recover; MemoryMax is the hard stop, so a runaway worker is killed by its own
@@ -124,8 +133,8 @@ RestartSec=2
 #   journalctl -u attendance | grep -i -E "memory|killed"
 # If workers are being killed, either raise MemoryMax (there is headroom to
 # about 480M before the OS itself is squeezed) or lower WEB_CONCURRENCY.
-MemoryHigh=420M
-MemoryMax=500M
+MemoryHigh=360M
+MemoryMax=430M
 
 # File descriptors. Each in-flight connection needs one, and the 1024 default
 # is reached well before this app's actual capacity.

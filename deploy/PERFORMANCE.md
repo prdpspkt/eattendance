@@ -1,4 +1,4 @@
-# Performance notes: 4 cores, 500 MB, ARM
+# Performance notes: 4 cores, 655 MB, ARM (HiSilicon Hi3798)
 
 What was changed to make this deployment fast, what it can realistically serve,
 and how to measure it without measuring the wrong thing.
@@ -6,7 +6,7 @@ and how to measure it without measuring the wrong thing.
 ## Read this first: what 2000 req/s means here
 
 Throughput is not a property of a server, it is a property of a server *and an
-endpoint*. On this hardware:
+endpoint*.
 
 The target hardware is a HiSilicon Hi3798 TV box: four Cortex-A53 cores, with
 frequency steps of 400 / 600 / 800 / 1200 / **1600** MHz. An A53 is a small
@@ -35,10 +35,6 @@ Worth keeping in perspective: the real workload is a hundred terminals polling
 every ten seconds, which is 10 req/s. 2000 is a burst-tolerance target, and
 burst tolerance is what the backlog and worker settings buy.
 
-The good news is that the real workload is nowhere near it. A hundred terminals
-polling every 10 seconds is 10 req/s. 2000 req/s is a burst-tolerance target,
-and burst tolerance is what the backlog and worker settings below buy you.
-
 ## Why your benchmark showed 16 req/s
 
 ```
@@ -51,7 +47,8 @@ Four separate problems, none of them the application's actual speed:
 
 1. **One worker.** Bare `gunicorn ehajiri.wsgi` runs a *single sync worker* —
    one request at a time, on a 4-core box. This was the dominant factor. Fixed
-   by `deploy/gunicorn.conf.py` (4 workers × 4 threads).
+   by `deploy/gunicorn.conf.py`, sized to 8 workers x 2 threads in the
+   systemd unit.
 2. **Every response was an error.** `Non-2xx responses: 765` — `/` was not a
    routed URL, so `ab` was timing a 404. With `DEBUG=True` that 404 is the
    6.8 KB debug page (note `Document Length: 6810`), which is far more
@@ -130,6 +127,13 @@ pgrep -c -f gunicorn          # must be 0 before you start anything
 
 `deploy/deploy.sh` checks for this automatically and refuses to report success
 if a process with the old command line is still alive.
+
+The check matches on this repo's path, **not** on "gunicorn", because the host
+also runs `deepit.service` - a separate Django site from `/srv/deepit` on port
+8000, with its own `--workers 2 --access-logfile -` command line. That is a
+legitimate co-tenant, not a competing instance: it binds a different port and
+must be left alone. An earlier version of the check counted its processes and
+reported a false alarm.
 
 ## Measurements from this box
 
@@ -266,23 +270,28 @@ config for the host-wide `nginx.conf` settings it assumes.
 
 ## Memory budget
 
-The box has **655 MB total and no swap**. Measured with the old 2-worker setup:
-~220 MB used, ~434 MB available.
+The box has **655 MB total and no swap**, and **this app is not the only thing
+on it**: `deepit.service` runs a second Django site (the thedeepit.com welcome
+page, `/srv/deepit`, gunicorn on port 8000) using ~88 MB. Budget accordingly.
 
 | | |
 |---|---|
-| gunicorn master + 8 preloaded workers | ~300–380 MB |
+| gunicorn master + 8 preloaded workers | ~200–300 MB |
+| `deepit.service` (separate site, port 8000) | ~90 MB |
 | nginx (4 workers) | ~20 MB |
 | redis (optional, small dataset) | ~15 MB |
 | Celery worker (optional, 1 process) | ~60 MB |
 | OS, sshd, journald | ~110 MB |
-| **Total** | **~440–520 MB** |
+| **Total** | **~495–595 MB of 655 MB** |
 
-Eight workers is the setting most likely to need adjusting, and there is not
-much slack left — especially if you also run Celery and redis. `MemoryHigh=420M`
-/ `MemoryMax=500M` make gunicorn the thing that gets reclaimed and killed if
-something grows, rather than the kernel OOM killer choosing sshd. **Check this
-after deploying:**
+Measured after deploying eight workers with both sites running: **300 MB used,
+355 MB available**. Comfortable — but the slack disappears if you add Celery
+and redis, so measure again if you do.
+
+Eight workers is the setting most likely to need adjusting. `MemoryHigh=360M` /
+`MemoryMax=430M` are set *under* the co-tenant's share, so gunicorn is
+reclaimed and killed if something grows rather than the kernel OOM killer
+choosing sshd or the other site. **Check this after deploying:**
 
 ```bash
 systemctl status attendance | grep Memory
