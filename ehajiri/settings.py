@@ -81,11 +81,20 @@ ALLOWED_HOSTS = [
 # unsafe requests, and when nginx terminates TLS the browser sends
 # https://... while Django sees a plain http request, so the https origin
 # must be listed explicitly or every POST fails CSRF verification.
+#
+# The extra hostnames are included for the same reason they are in
+# ALLOWED_HOSTS. Listing a name there only gets a page to render on it; every
+# form on that page still fails to submit unless the name is also trusted
+# here, which made an alias domain look like it "half worked" - pages load,
+# logging in does not.
 CSRF_TRUSTED_ORIGINS = [
     f'https://{SITE_DOMAIN}',
     f'http://{SITE_DOMAIN}',
     'http://localhost:8000',
     'http://127.0.0.1:8000',
+    *(f'{scheme}://{host}'
+      for host in EXTRA_ALLOWED_HOSTS
+      for scheme in ('https', 'http')),
 ]
 
 # TLS terminates at Cloudflare and nginx forwards the original scheme, so

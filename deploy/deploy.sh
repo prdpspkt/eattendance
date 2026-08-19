@@ -129,6 +129,15 @@ code=$(curl -s -o /dev/null -w '%{http_code}' "http://$BIND_HOST:$BIND_PORT/heal
 echo "  /healthz/       : HTTP $code"
 [ "$code" = "200" ] || { warn "health check failed - see: journalctl -u attendance -n 50"; fail=1; }
 
+# A running service and a service that survives a reboot are different things,
+# and the difference is invisible until the box reboots at 3am. Check it here
+# rather than finding out then.
+for unit in attendance cpu-performance; do
+    state=$(systemctl is-enabled "$unit" 2>/dev/null || echo unknown)
+    echo "  $unit boot start: $state"
+    [ "$state" = "enabled" ] || { warn "$unit will NOT start at boot - fix with: sudo systemctl enable $unit"; fail=1; }
+done
+
 rss=$(ours_pids | xargs -r ps -o rss= -p 2>/dev/null | awk '{sum+=$1} END {printf "%.0f", sum/1024}')
 echo "  gunicorn RSS    : ${rss:-?} MB total (sums shared pages, so an overestimate)"
 free -m | awk '/^Mem:/ {printf "  memory          : %s MB used, %s MB available of %s MB\n", $3, $7, $2}'

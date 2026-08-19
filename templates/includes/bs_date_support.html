@@ -1,0 +1,10 @@
+{% comment %}
+Loads the BS conversion table and the script that uses it.
+
+Put this in {% block scripts %} on any page that includes bs_date_filter.html.
+It is not in base.html on purpose: the table is a few kilobytes of calendar
+data and most pages have no date filter to spend it on.
+{% endcomment %}
+{% load static %}
+{{ bs_calendar|json_script:"bs-calendar-data" }}
+<script src="{% static 'js/nepali-date.js' %}"></script>

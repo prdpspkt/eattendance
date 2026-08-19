@@ -15,6 +15,10 @@
         <a href="{% url 'attendance:manual_attendance' %}" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-pencil-square" aria-hidden="true"></i> Manual entry
         </a>
+        <a href="{% url 'attendance:overtime_summary' %}?{{ request.GET.urlencode }}"
+           class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-bar-chart" aria-hidden="true"></i> Summary
+        </a>
         <a href="{% url 'attendance:overtime_export' %}?{{ request.GET.urlencode }}"
            class="btn btn-sm btn-primary">
             <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Export to Excel
@@ -26,14 +30,10 @@
     <div class="card-body">
         <div class="row g-3 align-items-end">
             <div class="col-sm-6 col-lg-2">
-                <label for="start" class="form-label">From</label>
-                <input type="date" class="form-control" id="start" name="start"
-                       value="{{ filters.start|date:'Y-m-d' }}">
+                {% include 'includes/bs_date_filter.html' with field='start' label='From' value=filters.start %}
             </div>
             <div class="col-sm-6 col-lg-2">
-                <label for="end" class="form-label">To</label>
-                <input type="date" class="form-control" id="end" name="end"
-                       value="{{ filters.end|date:'Y-m-d' }}">
+                {% include 'includes/bs_date_filter.html' with field='end' label='To' value=filters.end %}
             </div>
             <div class="col-sm-6 col-lg-3">
                 <label for="employee" class="form-label">Employee</label>
@@ -234,4 +234,8 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% include 'includes/bs_date_support.html' %}
 {% endblock %}

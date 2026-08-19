@@ -123,6 +123,45 @@ def sync_attendance(request, device_id):
 @login_required
 @permission_required('core.can_manage_devices', raise_exception=False, login_url='dashboard')
 @require_POST
+def request_users(request, device_id):
+    """Ask a push-mode device to upload its user table.
+
+    The push counterpart of "Sync Users". The server cannot read the device's
+    user table - it can only queue a request and wait for the upload, which
+    arrives on the device's next poll a few seconds later. That delay is why
+    this reports "queued" rather than a result: there is nothing to report yet.
+    """
+    device = get_object_or_404(Device, id=device_id)
+
+    if not device.push_enabled:
+        messages.error(
+            request,
+            f'{device.name} is not using the push protocol, so it has no command queue.'
+        )
+        return redirect('devices:device_detail', device_id=device_id)
+
+    device.queue_user_query(created_by=request.user)
+
+    if device.is_online:
+        messages.success(
+            request,
+            f'Asked {device.name} for its user list. The device uploads it on its next '
+            f'poll, usually within seconds - reload this page shortly. Users it reports '
+            f'that are not linked to an employee appear under Unlinked Enrollments.'
+        )
+    else:
+        messages.warning(
+            request,
+            f'{device.name} has not checked in recently, so the request is queued and '
+            f'will be collected the next time it connects. Nothing is lost in the meantime.'
+        )
+
+    return redirect('devices:device_detail', device_id=device_id)
+
+
+@login_required
+@permission_required('core.can_manage_devices', raise_exception=False, login_url='dashboard')
+@require_POST
 def test_connection(request, device_id):
     """Test connection to device"""
 

@@ -20,6 +20,10 @@ def navigation(request):
     context = {
         'is_office_admin': is_office_admin,
         'weekend_day_names': _weekend_names(),
+        # The BS conversion table, for pages that include the date filter
+        # partial. Built once per process, not once per request - it is
+        # published calendar data and never changes while the server runs.
+        'bs_calendar': _bs_calendar(),
     }
 
     if is_office_admin:
@@ -32,6 +36,17 @@ def navigation(request):
         context['pending_travel_count'] = TravelOrder.objects.filter(status='PENDING').count()
 
     return context
+
+
+_BS_CALENDAR = None
+
+
+def _bs_calendar():
+    global _BS_CALENDAR
+    if _BS_CALENDAR is None:
+        from core.nepali_date import calendar_data
+        _BS_CALENDAR = calendar_data()
+    return _BS_CALENDAR
 
 
 def _weekend_names():

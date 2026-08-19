@@ -61,14 +61,10 @@
 
 <form method="get" class="toolbar" role="search" aria-label="Filter attendance">
     <div>
-        <label for="filter_start" class="form-label mb-1">From</label>
-        <input type="date" id="filter_start" name="start_date" class="form-control form-control-sm"
-               value="{{ selected_start_date }}">
+        {% include 'includes/bs_date_filter.html' with field='start_date' input_id='filter_start' label='From' value=selected_start_date %}
     </div>
     <div>
-        <label for="filter_end" class="form-label mb-1">To</label>
-        <input type="date" id="filter_end" name="end_date" class="form-control form-control-sm"
-               value="{{ selected_end_date }}">
+        {% include 'includes/bs_date_filter.html' with field='end_date' input_id='filter_end' label='To' value=selected_end_date %}
     </div>
     <div class="align-self-end d-flex gap-2">
         <button type="submit" class="btn btn-sm btn-primary">
@@ -189,4 +185,8 @@
     </ul>
 </nav>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% include 'includes/bs_date_support.html' %}
 {% endblock %}

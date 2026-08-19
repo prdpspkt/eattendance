@@ -22,6 +22,16 @@ After=network.target
 Wants=cpu-performance.service
 After=cpu-performance.service
 
+# Restart=always below is worthless if systemd gives up on the service, and by
+# default it does: five failed starts within ten seconds and the unit is left
+# in a permanent failed state until somebody resets it by hand. At boot, when
+# the CPU is still parked at 400 MHz and every other service is competing for
+# four slow cores, a few failed starts are exactly what you get - and the
+# symptom is a service that never comes up after a reboot but starts fine when
+# you run systemctl start yourself, hours later. Disabling the limit means it
+# keeps retrying every RestartSec until it succeeds.
+StartLimitIntervalSec=0
+
 [Service]
 Type=notify
 User=ubuntu
@@ -107,6 +117,14 @@ ExecReload=/bin/kill -s HUP $MAINPID
 KillMode=mixed
 Restart=always
 RestartSec=2
+
+# Type=notify means systemd waits for gunicorn to say it is ready, and with
+# preload_app the master imports the whole of Django before it can say so. On
+# four 1.6 GHz A53 cores that is slow; at boot, with the governor still parked
+# and every other unit starting at once, it can be very slow. The 90 second
+# default is enough to kill it there and nowhere else, which is why this only
+# ever bites after a reboot.
+TimeoutStartSec=180
 
 # --- resource limits ------------------------------------------------------
 # The box has 655 MB total and NO SWAP, and this service is not alone on it:

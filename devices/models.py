@@ -210,8 +210,30 @@ class Device(models.Model):
         self.save(update_fields=['attlog_stamp'])
         return self.queue_command(adms_commands.CHECK, created_by=created_by)
 
+    def _require_pull_address(self, action):
+        """Refuse a pull-transport action when there is no address to dial.
+
+        A push device is identified by its serial number and has no usable
+        address - it reaches us, we never reach it. pyzk does not check this:
+        it builds a ping command by string concatenation and dies with
+        "can only concatenate str (not NoneType) to str", which tells the
+        office nothing about what is actually wrong.
+        """
+        if self.ip_address:
+            return None
+        return (
+            f"No IP address on this device, so it cannot be {action}. "
+            "It reports over the push protocol (it connects to the server, not "
+            "the other way round), and punches arrive on their own. Set an IP "
+            "address only if the device is reachable from this server on the "
+            "ZK protocol."
+        )
+
     def test_connection(self):
         """Test connection to the device using pyzk"""
+        unreachable = self._require_pull_address('dialled')
+        if unreachable:
+            return False, unreachable
         try:
             from zk import ZK
             conn = None
@@ -241,6 +263,10 @@ class Device(models.Model):
         from django.conf import settings as django_settings
 
         from .ingest import process_touched_days, record_punches
+
+        unreachable = self._require_pull_address('polled for attendance')
+        if unreachable:
+            return False, unreachable
 
         conn = None
         try:
@@ -310,6 +336,10 @@ class Device(models.Model):
 
     def sync_users(self):
         """Sync users from device to create EmployeeDevice records"""
+        unreachable = self._require_pull_address('polled for users')
+        if unreachable:
+            return False, unreachable
+
         try:
             from zk import ZK
             from django.utils import timezone

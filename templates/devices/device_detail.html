@@ -66,6 +66,10 @@
                 <h6 class="mb-0"><i class="bi bi-gear" aria-hidden="true"></i> Actions</h6>
             </div>
             <div class="card-body">
+                {% if device.ip_address %}
+                {# Pull transport: the server dials the device on TCP 4370.
+                   Offered only when there is an address to dial - a push
+                   device has none, and these buttons could only fail. #}
                 <form method="post" action="{% url 'devices:test_connection' device.id %}" class="mb-3">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-outline-primary w-100">
@@ -86,6 +90,29 @@
                         <i class="bi bi-calendar-check" aria-hidden="true"></i> Sync Attendance
                     </button>
                 </form>
+                {% else %}
+                <div class="alert alert-light border small mb-3">
+                    <div class="fw-semibold mb-1">
+                        <i class="bi bi-broadcast" aria-hidden="true"></i> Push device
+                    </div>
+                    This device connects to the server; the server never dials it, so there
+                    is nothing to test or poll. It last checked in
+                    {% if device.last_seen %}{{ device.last_seen|timesince }} ago{% else %}never{% endif %}
+                    and is currently
+                    {% if device.is_online %}<span class="text-success fw-semibold">online</span>
+                    {% else %}<span class="text-danger fw-semibold">offline</span>{% endif %}.
+                </div>
+
+                <form method="post" action="{% url 'devices:request_users' device.id %}" class="mb-3">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-success w-100">
+                        <i class="bi bi-person-plus" aria-hidden="true"></i> Request Users from Device
+                    </button>
+                    <small class="d-block text-muted mt-1">
+                        Queues a request; the device uploads its user list on its next poll.
+                    </small>
+                </form>
+                {% endif %}
 
                 <a href="{% url 'devices:todays_attendance' %}" class="btn btn-outline-warning w-100">
                     <i class="bi bi-clock-history" aria-hidden="true"></i> Today's Attendance Log
@@ -147,12 +174,25 @@
                 <div class="text-center py-4">
                     <i class="bi icon-jumbo bi-person-x" aria-hidden="true"></i>
                     <p class="text-muted mt-3">No users enrolled on this device yet.</p>
+                    {% if device.ip_address %}
                     <form method="post" action="{% url 'devices:sync_users' device.id %}">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-success">
                             <i class="bi bi-person-plus" aria-hidden="true"></i> Sync Users from Device
                         </button>
                     </form>
+                    {% else %}
+                    <p class="text-muted small">
+                        Enrolments arrive on their own when somebody is added on the terminal.
+                        To ask for the current list now:
+                    </p>
+                    <form method="post" action="{% url 'devices:request_users' device.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-person-plus" aria-hidden="true"></i> Request Users from Device
+                        </button>
+                    </form>
+                    {% endif %}
                 </div>
                 {% endif %}
             </div>

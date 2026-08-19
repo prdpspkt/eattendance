@@ -82,16 +82,10 @@
 
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="start_date" class="form-label">Start Date <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" name="start_date"
-                                   id="start_date" required>
-                            <small class="text-muted">First day of leave</small>
+                            {% include 'includes/bs_date_filter.html' with field='start_date' label='Start Date' value=form_start_date required=True %}
                         </div>
                         <div class="col-md-6">
-                            <label for="end_date" class="form-label">End Date <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" name="end_date"
-                                   id="end_date" required>
-                            <small class="text-muted">Last day of leave</small>
+                            {% include 'includes/bs_date_filter.html' with field='end_date' label='End Date' value=form_end_date required=True %}
                         </div>
                     </div>
 
@@ -147,4 +141,8 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% include 'includes/bs_date_support.html' %}
 {% endblock %}

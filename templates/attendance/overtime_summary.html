@@ -1,0 +1,294 @@
+{% extends 'base.html' %}
+{% load core_extras %}
+
+{% block title %}Overtime summary - E-Attendance{% endblock %}
+{% block page-title %}Overtime summary{% endblock %}
+
+{% block auth_content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-header__title">Overtime summary</h2>
+        <p class="page-header__subtitle">
+            Totals for the period - {{ filters.start|date:'d M Y' }} to {{ filters.end|date:'d M Y' }}
+            <span class="text-muted">(BS {{ filters.start|to_bs }} to {{ filters.end|to_bs }})</span>
+        </p>
+    </div>
+    <div class="page-header__actions">
+        <a href="{% url 'attendance:overtime_report' %}?{{ request.GET.urlencode }}"
+           class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-list-ul" aria-hidden="true"></i> Full record list
+        </a>
+        <a href="{% url 'attendance:overtime_summary_export' %}?{{ request.GET.urlencode }}"
+           class="btn btn-sm btn-primary">
+            <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Export to Excel
+        </a>
+    </div>
+</div>
+
+<form method="get" class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-sm-6 col-lg-2">
+                {% include 'includes/bs_date_filter.html' with field='start' label='From' value=filters.start %}
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                {% include 'includes/bs_date_filter.html' with field='end' label='To' value=filters.end %}
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <label for="employee" class="form-label">Employee</label>
+                <select class="form-select" id="employee" name="employee">
+                    <option value="">All employees</option>
+                    {% for employee in employees %}
+                        <option value="{{ employee.id }}" {% if filters.employee == employee.id|stringformat:"s" %}selected{% endif %}>
+                            {{ employee.user.get_full_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                <label for="department" class="form-label">Department</label>
+                <select class="form-select" id="department" name="department">
+                    <option value="">All</option>
+                    {% for department in departments %}
+                        <option value="{{ department.id }}" {% if filters.department == department.id|stringformat:"s" %}selected{% endif %}>
+                            {{ department.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">Any</option>
+                    {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-lg-1">
+                <button type="submit" class="btn btn-primary w-100">Apply</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="row row-cols-2 row-cols-lg-4 g-3 mb-4">
+    <div class="col">
+        <div class="metric">
+            <div>
+                <div class="metric__label">Total overtime</div>
+                <div class="metric__value">{{ totals.hours|floatformat:"-2" }} h</div>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="metric">
+            <div>
+                <div class="metric__label">{% if single %}Days worked{% else %}Employees{% endif %}</div>
+                <div class="metric__value">{% if single %}{{ single.days }}{% else %}{{ rows|length }}{% endif %}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="metric">
+            <div>
+                <div class="metric__label">Records</div>
+                <div class="metric__value">{{ totals.count }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="metric">
+            <div>
+                <div class="metric__label">Amount</div>
+                <div class="metric__value">
+                    {% if totals.amount is not None %}{{ totals.amount|floatformat:2 }}{% else %}&mdash;{% endif %}
+                </div>
+                {% if totals.unpriced %}
+                <div class="metric__label text-warning-emphasis">
+                    {{ totals.unpriced }} record{{ totals.unpriced|pluralize }} with no rate
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if single %}
+<div class="card mb-4">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">{{ single.employee.user.get_full_name }}</h5>
+        <small class="text-muted">
+            {{ single.employee.employee_id }}{% if single.employee.department %} &middot; {{ single.employee.department.name }}{% endif %}
+            &middot; first overtime in this period {{ single.first_date|date:'d M Y' }},
+            last {{ single.last_date|date:'d M Y' }}
+        </small>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Month (BS)</th>
+                        <th>Dates covered (AD)</th>
+                        <th class="text-end">Days</th>
+                        <th class="text-end">Hours</th>
+                        <th class="text-end">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for month in months %}
+                    <tr>
+                        <td>{{ month.label }}</td>
+                        <td class="text-muted">
+                            {{ month.first_date|date:'d M Y' }} &ndash; {{ month.last_date|date:'d M Y' }}
+                        </td>
+                        <td class="text-end">{{ month.days }}</td>
+                        <td class="text-end">{{ month.hours|floatformat:"-2" }}</td>
+                        <td class="text-end">
+                            {% if month.amount is not None %}{{ month.amount|floatformat:2 }}{% else %}&mdash;{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="fw-semibold border-top">
+                        <td colspan="2">Total</td>
+                        <td class="text-end">{{ single.days }}</td>
+                        <td class="text-end">{{ single.hours|floatformat:"-2" }}</td>
+                        <td class="text-end">
+                            {% if single.amount is not None %}{{ single.amount|floatformat:2 }}{% else %}&mdash;{% endif %}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">Every overtime day in the period</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Date (BS)</th>
+                        <th>Worked</th>
+                        <th class="text-end">Hours</th>
+                        <th>Job performed</th>
+                        <th class="text-end">Amount</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                    <tr>
+                        <td>{{ record.date|date:'d M Y' }}</td>
+                        <td class="text-muted">{{ record.date|to_bs }}</td>
+                        <td>{{ record.start_at|time:'H:i' }} &ndash; {{ record.end_at|time:'H:i' }}</td>
+                        <td class="text-end">{{ record.hours|floatformat:"-2" }}</td>
+                        <td>
+                            {% if record.job_performed %}{{ record.job_performed }}
+                            {% else %}<span class="text-warning-emphasis">Not recorded</span>{% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if record.amount is not None %}{{ record.amount|floatformat:2 }}{% else %}&mdash;{% endif %}
+                        </td>
+                        <td>{% status_badge record.status record.get_status_display %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="card">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">All employees</h5>
+        <small class="text-muted">
+            One row per employee. Select an employee above to see the month-by-month breakdown.
+        </small>
+    </div>
+    <div class="card-body">
+        {% if rows %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Department</th>
+                        <th class="text-end">Days</th>
+                        <th class="text-end">Hours</th>
+                        <th class="text-end">Approved</th>
+                        <th class="text-end">Pending</th>
+                        <th class="text-end">Amount</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td>
+                            <strong>{{ row.employee.user.get_full_name }}</strong>
+                            <br><small class="text-muted">{{ row.employee.employee_id }}</small>
+                        </td>
+                        <td>{{ row.employee.department.name|default:"&mdash;" }}</td>
+                        <td class="text-end">{{ row.days }}</td>
+                        <td class="text-end fw-semibold">{{ row.hours|floatformat:"-2" }}</td>
+                        <td class="text-end text-success">{{ row.approved_hours|floatformat:"-2" }}</td>
+                        <td class="text-end">
+                            {% if row.pending_hours %}
+                                <span class="text-warning-emphasis">{{ row.pending_hours|floatformat:"-2" }}</span>
+                            {% else %}
+                                <span class="text-muted">0</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if row.amount is not None %}{{ row.amount|floatformat:2 }}{% else %}&mdash;{% endif %}
+                            {% if row.unpriced %}
+                            <br><small class="text-warning-emphasis">{{ row.unpriced }} unpriced</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-primary"
+                               href="?{% query_replace employee=row.employee.id %}"
+                               aria-label="Overtime summary for {{ row.employee.user.get_full_name }}">
+                                <i class="bi bi-eye" aria-hidden="true"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="fw-semibold border-top">
+                        <td colspan="3">Total &mdash; {{ rows|length }} employee{{ rows|length|pluralize }}</td>
+                        <td class="text-end">{{ totals.hours|floatformat:"-2" }}</td>
+                        <td colspan="2"></td>
+                        <td class="text-end">
+                            {% if totals.amount is not None %}{{ totals.amount|floatformat:2 }}{% else %}&mdash;{% endif %}
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi icon-jumbo bi-hourglass" aria-hidden="true"></i>
+            <p class="text-muted mt-3">No overtime was recorded in this period.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% include 'includes/bs_date_support.html' %}
+{% endblock %}

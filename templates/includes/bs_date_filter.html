@@ -1,0 +1,25 @@
+{% comment %}
+A date filter in both calendars.
+
+Include it wherever a date is filtered or entered:
+
+    {% include 'includes/bs_date_filter.html' with field='start' label='From' value=filters.start %}
+
+The AD box is the browser's own date picker and is what the form submits; the
+BS box beside it is kept in step by static/js/nepali-date.js. The BS box is
+submitted too, under <field>_bs, so a page still filters correctly with
+JavaScript off - the server converts it (see core.nepali_date.parse_either).
+{% endcomment %}
+{% load core_extras %}
+{% firstof input_id field as bs_id %}
+<label for="{{ bs_id }}" class="form-label mb-1">{{ label }}</label>
+<input type="date" class="form-control form-control-sm" id="{{ bs_id }}" name="{{ field }}"
+       data-bs-paired value="{{ value|date:'Y-m-d' }}"{% if required %} required{% endif %}>
+<div class="input-group input-group-sm mt-1">
+    <span class="input-group-text" id="{{ bs_id }}-bs-label">BS</span>
+    <input type="text" class="form-control" name="{{ field }}_bs"
+           data-bs-for="{{ bs_id }}" value="{{ value|to_bs }}"
+           inputmode="numeric" placeholder="YYYY-MM-DD"
+           aria-labelledby="{{ bs_id }}-bs-label">
+</div>
+<small class="text-muted" data-bs-hint-for="{{ bs_id }}">{{ value|to_bs_long }}</small>

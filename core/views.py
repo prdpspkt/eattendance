@@ -198,8 +198,12 @@ def my_attendance(request):
 
     # Date range filter. The template offered start/end date inputs while this
     # view only read month/year, so the filter silently did nothing.
-    start_date = _parse_date(request.GET.get('start_date'))
-    end_date = _parse_date(request.GET.get('end_date'))
+    # Either calendar: the BS box beside each date input submits <field>_bs,
+    # and is what the office actually types.
+    from core.nepali_date import parse_either
+
+    start_date = parse_either(request.GET.get('start_date'), request.GET.get('start_date_bs'))
+    end_date = parse_either(request.GET.get('end_date'), request.GET.get('end_date_bs'))
     month = request.GET.get('month')
     year = request.GET.get('year')
 
@@ -243,8 +247,8 @@ def my_attendance(request):
         'page_obj': page,
         'paginator': paginator,
         'summary': summary,
-        'selected_start_date': request.GET.get('start_date', ''),
-        'selected_end_date': request.GET.get('end_date', ''),
+        'selected_start_date': start_date,
+        'selected_end_date': end_date,
         'selected_month': month,
         'selected_year': year,
         'order_by': order_by,
@@ -432,12 +436,15 @@ def request_leave(request):
         reason = request.POST.get('reason')
 
         try:
-            from datetime import datetime
+            from core.nepali_date import parse_either
+
             leave_type = LeaveType.objects.get(id=leave_type_id)
 
-            # Parse date strings to date objects
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            # Either calendar - the form carries a BS box beside each date.
+            start_date = parse_either(start_date_str, request.POST.get('start_date_bs'))
+            end_date = parse_either(end_date_str, request.POST.get('end_date_bs'))
+            if not (start_date and end_date):
+                raise ValueError('Enter both a start and an end date.')
 
             # Check for overlapping leave requests
             overlapping_leaves = LeaveRequest.objects.filter(
@@ -456,6 +463,8 @@ def request_leave(request):
                     'employee': employee,
                     'leave_types': leave_types,
                     'entitlement': leave_policy.entitlement_overview(employee),
+                    'form_start_date': start_date,
+                    'form_end_date': end_date,
                     'viewing_other': employee_id is not None,
                     'can_override': request.user.is_superuser or request.user.role == 'OFFICE_ADMIN',
                 }
@@ -479,6 +488,8 @@ def request_leave(request):
                     'employee': employee,
                     'leave_types': leave_types,
                     'entitlement': leave_policy.entitlement_overview(employee),
+                    'form_start_date': start_date,
+                    'form_end_date': end_date,
                     'viewing_other': employee_id is not None,
                     'can_override': request.user.is_superuser or request.user.role == 'OFFICE_ADMIN',
                 }
@@ -502,6 +513,8 @@ def request_leave(request):
                     'employee': employee,
                     'leave_types': leave_types,
                     'entitlement': leave_policy.entitlement_overview(employee),
+                    'form_start_date': start_date,
+                    'form_end_date': end_date,
                     'viewing_other': employee_id is not None,
                     'can_override': is_admin,
                 }

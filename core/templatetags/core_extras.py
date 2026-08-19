@@ -195,3 +195,17 @@ def punch_is_in(punch_type):
         return int(punch_type) in CHECK_IN_CODES
     except (TypeError, ValueError):
         return False
+
+
+@register.filter
+def to_bs(value):
+    """AD date -> BS 'YYYY-MM-DD'. Blank when the date is off the BS table."""
+    from core.nepali_date import format_bs
+    return format_bs(value)
+
+
+@register.filter
+def to_bs_long(value):
+    """AD date -> BS '03 Bhadra 2083', for reading rather than for a form."""
+    from core.nepali_date import format_bs_long
+    return format_bs_long(value)

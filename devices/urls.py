@@ -11,6 +11,7 @@ urlpatterns = [
     path('device/<int:device_id>/sync-users/', views.sync_users, name='sync_users'),
     path('device/<int:device_id>/sync-attendance/', views.sync_attendance, name='sync_attendance'),
     path('device/<int:device_id>/test-connection/', views.test_connection, name='test_connection'),
+    path('device/<int:device_id>/request-users/', views.request_users, name='request_users'),
     path('unlinked-enrollments/', views.unlinked_enrollments, name='unlinked_enrollments'),
     path('link/<int:enrollment_id>/', views.link_employee, name='link_employee'),
     path('unlink/<int:enrollment_id>/', views.unlink_employee, name='unlink_employee'),
