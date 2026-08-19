@@ -25,7 +25,7 @@
                             <tr>
                                 <th>Leave Type</th>
                                 <th>Code</th>
-                                <th>Days/Year</th>
+                                <th>Entitlement rule</th>
                                 <th>Paid</th>
                                 <th>Approval</th>
                                 <th>Status</th>
@@ -44,7 +44,16 @@
                                 <td>
                                     <span class="badge bg-secondary">{{ leave_type.code }}</span>
                                 </td>
-                                <td>{{ leave_type.days_per_year }} days</td>
+                                <td>
+                                    {% if leave_type.is_occasional %}
+                                        <span class="badge bg-info-subtle text-info-emphasis">Occasional</span>
+                                    {% elif leave_type.carry_forward == 'NONE' %}
+                                        <span class="badge bg-warning-subtle text-warning-emphasis">Expires yearly</span>
+                                    {% else %}
+                                        <span class="badge bg-success-subtle text-success-emphasis">Accumulates</span>
+                                    {% endif %}
+                                    <br><small class="text-muted">{{ leave_type.policy_summary }}</small>
+                                </td>
                                 <td>
                                     {% if leave_type.is_paid %}
                                         <i class="bi bi-check-circle text-success" aria-hidden="true"></i> Yes

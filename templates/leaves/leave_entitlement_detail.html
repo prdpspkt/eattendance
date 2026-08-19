@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% block title %}Leave Entitlement - E-Attendance System{% endblock %}
+
+{% block page-title %}
+    {% if viewing_other %}Leave Entitlement - {{ employee.user.get_full_name }}{% else %}My Leave Entitlement{% endif %}
+{% endblock %}
+
+{% block auth_content %}
+<div class="row g-3 mb-3">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-body d-flex flex-wrap gap-3 justify-content-between align-items-end">
+                <div>
+                    <h5 class="mb-1">{{ employee.user.get_full_name }}</h5>
+                    <small class="text-muted">
+                        {{ employee.employee_id }}{% if employee.department %} &middot; {{ employee.department.name }}{% endif %}
+                        &middot; joined {{ employee.join_date|date:"d M Y" }}
+                    </small>
+                </div>
+                <form method="get" class="d-flex gap-2 align-items-end">
+                    <div>
+                        <label for="year" class="form-label mb-1">Leave year</label>
+                        <select name="year" id="year" class="form-select" onchange="this.form.submit()">
+                            {% for option in years %}
+                            <option value="{{ option }}" {% if option == year %}selected{% endif %}>
+                                {{ option }}{% if option == current_year %} (current){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <noscript><button type="submit" class="btn btn-outline-primary">Show</button></noscript>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Yearly leave - {{ year }}</h5>
+            </div>
+            <div class="card-body">
+                {% if yearly %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Leave Type</th>
+                                <th class="text-end">Brought forward</th>
+                                <th class="text-end">Credited</th>
+                                <th class="text-end">Lapsed</th>
+                                <th class="text-end">Entitlement</th>
+                                <th class="text-end">Taken</th>
+                                <th class="text-end">Remaining</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for balance in yearly %}
+                            <tr>
+                                <td>
+                                    <strong>{{ balance.leave_type.name }}</strong>
+                                    <br><small class="text-muted">{{ balance.leave_type.policy_summary }}</small>
+                                </td>
+                                <td class="text-end">{{ balance.opening_days|floatformat:"-1" }}</td>
+                                <td class="text-end">{{ balance.accrued_days|floatformat:"-1" }}</td>
+                                <td class="text-end">
+                                    {% if balance.lapsed_days %}
+                                        <span class="text-warning-emphasis">{{ balance.lapsed_days|floatformat:"-1" }}</span>
+                                    {% else %}
+                                        <span class="text-muted">0</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">{{ balance.total_days|floatformat:"-1" }}</td>
+                                <td class="text-end">{{ balance.used_days|floatformat:"-1" }}</td>
+                                <td class="text-end fw-semibold {% if balance.remaining_days <= 0 %}text-danger{% else %}text-success{% endif %}">
+                                    {{ balance.remaining_days|floatformat:"-1" }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-muted small mb-0">
+                    Brought forward is last year's remaining balance, trimmed to the ceiling for
+                    that leave type. Anything above the ceiling, and anything left over in leave
+                    that expires, shows as lapsed.
+                </p>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi icon-jumbo bi-calendar-x" aria-hidden="true"></i>
+                    <p class="text-muted mt-3">No yearly entitlement recorded for {{ year }}.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if occasional %}
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Occasional leave</h5>
+                <small class="text-muted">Counted over a whole career, not per year.</small>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Leave Type</th>
+                                <th class="text-end">Days each time</th>
+                                <th class="text-end">Taken</th>
+                                <th class="text-end">Still available</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in occasional %}
+                            <tr>
+                                <td>
+                                    <strong>{{ entry.leave_type.name }}</strong>
+                                    <br><small class="text-muted">{{ entry.leave_type.policy_summary }}</small>
+                                </td>
+                                <td class="text-end">{{ entry.days_per_occurrence|default:"-" }}</td>
+                                <td class="text-end">
+                                    {{ entry.used_occurrences }}{% if entry.max_occurrences %} of {{ entry.max_occurrences }}{% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if entry.max_occurrences %}
+                                        {% if entry.exhausted %}
+                                            <span class="badge bg-danger">Used up</span>
+                                        {% else %}
+                                            <span class="fw-semibold text-success">{{ entry.left_occurrences }}</span>
+                                            <small class="text-muted">more</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">No limit</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="mt-3">
+    {% if viewing_other %}
+    <a href="{% url 'leave_balance_management' %}?year={{ year }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to leave balances
+    </a>
+    {% else %}
+    <a href="{% url 'my_leaves' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to my leaves
+    </a>
+    {% endif %}
+</div>
+{% endblock %}

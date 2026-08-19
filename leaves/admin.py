@@ -3,19 +3,23 @@ from .models import LeaveType, LeaveBalance, LeaveRequest
 
 @admin.register(LeaveType)
 class LeaveTypeAdmin(admin.ModelAdmin):
-    list_display = ['name', 'code', 'days_per_year', 'is_paid', 'requires_approval', 'is_active']
-    list_filter = ['is_paid', 'requires_approval', 'is_active']
+    list_display = ['name', 'code', 'accrual', 'policy_summary', 'is_paid', 'requires_approval', 'is_active']
+    list_filter = ['accrual', 'carry_forward', 'is_paid', 'requires_approval', 'is_active']
     search_fields = ['name', 'code']
     ordering = ['name']
 
 
 @admin.register(LeaveBalance)
 class LeaveBalanceAdmin(admin.ModelAdmin):
-    list_display = ['employee', 'leave_type', 'year', 'total_days', 'used_days', 'remaining_days']
+    list_display = ['employee', 'leave_type', 'year', 'opening_days', 'accrued_days',
+                    'total_days', 'used_days', 'remaining_days']
     list_filter = ['year', 'leave_type']
     search_fields = ['employee__user__first_name', 'employee__user__last_name', 'employee__employee_id']
     ordering = ['-year', 'employee']
-    readonly_fields = ['used_days', 'remaining_days']
+    # Balances are derived from the leave types and the approved requests -
+    # rebuild them from the Leave Balances page rather than typing over them.
+    readonly_fields = ['opening_days', 'accrued_days', 'lapsed_days',
+                       'total_days', 'used_days', 'remaining_days']
 
 
 @admin.register(LeaveRequest)

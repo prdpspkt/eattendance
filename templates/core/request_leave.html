@@ -39,6 +39,47 @@
                         <small class="text-muted">Choose the type of leave you are requesting</small>
                     </div>
 
+                    {% if entitlement %}
+                    <div class="alert alert-light border">
+                        <div class="fw-semibold mb-2">
+                            <i class="bi bi-calculator" aria-hidden="true"></i>
+                            Entitlement as it stands ({{ entitlement.year }})
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for balance in entitlement.yearly %}
+                            <span class="badge bg-light text-dark border">
+                                {{ balance.leave_type.name }}:
+                                <strong>{{ balance.remaining_days|floatformat:"-1" }}</strong>
+                                of {{ balance.total_days|floatformat:"-1" }} days left
+                            </span>
+                            {% endfor %}
+                            {% for entry in entitlement.occasional %}
+                            <span class="badge {% if entry.exhausted %}bg-danger-subtle text-danger-emphasis{% else %}bg-info-subtle text-info-emphasis{% endif %} border">
+                                {{ entry.leave_type.name }}:
+                                {% if entry.max_occurrences %}
+                                    {{ entry.used_occurrences }} of {{ entry.max_occurrences }} taken
+                                {% else %}
+                                    {{ entry.days_per_occurrence }} days each time
+                                {% endif %}
+                            </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if can_override %}
+                    <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" name="override" id="override" value="1">
+                        <label class="form-check-label" for="override">
+                            Grant beyond the entitlement
+                        </label>
+                        <small class="d-block text-muted">
+                            Record this even when the balance or the career limit does not allow it.
+                            The request is marked as an exception.
+                        </small>
+                    </div>
+                    {% endif %}
+
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="start_date" class="form-label">Start Date <span class="text-danger">*</span></label>

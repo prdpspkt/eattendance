@@ -48,6 +48,10 @@
                     <a href="{% url 'request_leave' %}" class="btn btn-outline-primary">
                         <i class="bi bi-plus-circle" aria-hidden="true"></i> Request Leave
                     </a>
+                    <a href="{% if viewing_other %}{% url 'leave_entitlement_detail' employee.id %}{% else %}{% url 'my_leave_entitlement' %}{% endif %}"
+                       class="btn btn-outline-primary">
+                        <i class="bi bi-calculator" aria-hidden="true"></i> Leave Entitlement
+                    </a>
                     <a href="{% url 'my_attendance' %}" class="btn btn-outline-secondary">
                         <i class="bi bi-calendar-event" aria-hidden="true"></i> My Attendance
                     </a>

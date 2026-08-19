@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+
+{% block title %}Leave Balances - E-Attendance System{% endblock %}
+
+{% block page-title %}Leave Balances{% endblock %}
+
+{% block auth_content %}
+<div class="row g-3 mb-3">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="get" class="row g-2 align-items-end">
+                    <div class="col-sm-6 col-md-3">
+                        <label for="year" class="form-label">Leave year</label>
+                        <select name="year" id="year" class="form-select">
+                            {% for option in years %}
+                            <option value="{{ option }}" {% if option == year %}selected{% endif %}>
+                                {{ option }}{% if option == current_year %} (current){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-md-3">
+                        <label for="department_id" class="form-label">Department</label>
+                        <select name="department_id" id="department_id" class="form-select">
+                            <option value="">All departments</option>
+                            {% for department in departments %}
+                            <option value="{{ department.id }}" {% if department_filter == department.id|stringformat:"s" %}selected{% endif %}>
+                                {{ department.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-md-4">
+                        <label for="employee_id" class="form-label">Employee</label>
+                        <select name="employee_id" id="employee_id" class="form-select">
+                            <option value="">All employees</option>
+                            {% for employee in employees %}
+                            <option value="{{ employee.id }}" {% if employee_filter == employee.id|stringformat:"s" %}selected{% endif %}>
+                                {{ employee.employee_id }} - {{ employee.user.get_full_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-md-2 d-grid">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="bi bi-funnel" aria-hidden="true"></i> Filter
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">Yearly entitlements - {{ year }}</h5>
+                        <small class="text-muted">
+                            Carried forward + credited this year, less what has been approved.
+                        </small>
+                    </div>
+                    <form method="post" action="{% url 'leave_balance_rebuild' %}" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="year" value="{{ year }}">
+                        <input type="hidden" name="employee_id" value="{{ employee_filter }}">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Rebuild balances
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if not yearly_types %}
+                <div class="text-center py-5">
+                    <i class="bi icon-jumbo bi-calendar-x" aria-hidden="true"></i>
+                    <p class="text-muted mt-3">No yearly leave types are configured.</p>
+                    <a href="{% url 'leave_type_management' %}" class="btn btn-primary">
+                        <i class="bi bi-gear" aria-hidden="true"></i> Set up leave types
+                    </a>
+                </div>
+                {% elif not has_balances %}
+                <div class="text-center py-5">
+                    <i class="bi icon-jumbo bi-calculator" aria-hidden="true"></i>
+                    <p class="text-muted mt-3">No balances have been computed for {{ year }} yet.</p>
+                    <p class="text-muted small">
+                        Rebuilding reads the leave types and the approved requests and works out
+                        every employee's entitlement from the year they joined.
+                    </p>
+                </div>
+                {% else %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                {% for leave_type in yearly_types %}
+                                <th class="text-center">
+                                    {{ leave_type.name }}
+                                    <br><small class="text-muted fw-normal">{{ leave_type.policy_summary }}</small>
+                                </th>
+                                {% endfor %}
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in rows %}
+                            <tr>
+                                <td>
+                                    <strong>{{ row.employee.user.get_full_name }}</strong>
+                                    <br><small class="text-muted">{{ row.employee.employee_id }}{% if row.employee.department %} &middot; {{ row.employee.department.name }}{% endif %}</small>
+                                </td>
+                                {% for balance in row.balances %}
+                                <td class="text-center">
+                                    {% if balance %}
+                                        <span class="fw-semibold {% if balance.remaining_days <= 0 %}text-danger{% endif %}">
+                                            {{ balance.remaining_days|floatformat:"-1" }}
+                                        </span>
+                                        <small class="text-muted">/ {{ balance.total_days|floatformat:"-1" }}</small>
+                                        <br>
+                                        <small class="text-muted">
+                                            b/f {{ balance.opening_days|floatformat:"-1" }},
+                                            used {{ balance.used_days|floatformat:"-1" }}{% if balance.lapsed_days %},
+                                            lapsed {{ balance.lapsed_days|floatformat:"-1" }}{% endif %}
+                                        </small>
+                                    {% else %}
+                                        <span class="text-muted">&mdash;</span>
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                                <td class="text-end">
+                                    <a href="{% url 'leave_entitlement_detail' row.employee.id %}?year={{ year }}"
+                                       class="btn btn-sm btn-outline-primary"
+                                       aria-label="Leave entitlement for {{ row.employee.user.get_full_name }}">
+                                        <i class="bi bi-eye" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if occasional_types %}
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Occasional leave</h5>
+                <small class="text-muted">
+                    Not credited yearly. Entered when the event happens, within the career limit.
+                </small>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Leave Type</th>
+                                <th>Days each time</th>
+                                <th>Times allowed in a career</th>
+                                <th>Approval</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for leave_type in occasional_types %}
+                            <tr>
+                                <td><strong>{{ leave_type.name }}</strong> <span class="badge bg-secondary">{{ leave_type.code }}</span></td>
+                                <td>{{ leave_type.days_per_occurrence|default:"-" }}</td>
+                                <td>
+                                    {% if leave_type.max_occurrences_lifetime %}
+                                        {{ leave_type.max_occurrences_lifetime }}
+                                    {% else %}
+                                        <span class="text-muted">No limit</span>
+                                    {% endif %}
+                                </td>
+                                <td>{% if leave_type.requires_approval %}Required{% else %}Not required{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-muted small mb-0">
+                    How many times each employee has already taken these is on their
+                    entitlement page.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

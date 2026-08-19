@@ -139,6 +139,12 @@
                             </a>
                         </li>
                         <li>
+                            <a class="app-nav__link" href="{% url 'leave_balance_management' %}"
+                               {% if 'leave_balance' in request.resolver_match.url_name or 'entitlement' in request.resolver_match.url_name %}aria-current="page"{% endif %}>
+                                <i class="bi bi-calculator" aria-hidden="true"></i> Leave Balances
+                            </a>
+                        </li>
+                        <li>
                             <a class="app-nav__link" href="{% url 'leave_type_management' %}"
                                {% if 'leave_type' in request.resolver_match.url_name %}aria-current="page"{% endif %}>
                                 <i class="bi bi-sliders" aria-hidden="true"></i> Leave Types

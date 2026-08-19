@@ -15,6 +15,7 @@ from django.core.paginator import Paginator
 
 from .models import Employee, Shift
 from .forms import ShiftForm
+from leaves import policy as leave_policy
 from leaves.models import LeaveRequest, LeaveType, LeaveBalance
 from travel_orders.models import TravelOrder
 from attendance.models import DailyAttendance
@@ -454,7 +455,9 @@ def request_leave(request):
                 context = {
                     'employee': employee,
                     'leave_types': leave_types,
+                    'entitlement': leave_policy.entitlement_overview(employee),
                     'viewing_other': employee_id is not None,
+                    'can_override': request.user.is_superuser or request.user.role == 'OFFICE_ADMIN',
                 }
                 return render(request, 'core/request_leave.html', context)
 
@@ -475,7 +478,32 @@ def request_leave(request):
                 context = {
                     'employee': employee,
                     'leave_types': leave_types,
+                    'entitlement': leave_policy.entitlement_overview(employee),
                     'viewing_other': employee_id is not None,
+                    'can_override': request.user.is_superuser or request.user.role == 'OFFICE_ADMIN',
+                }
+                return render(request, 'core/request_leave.html', context)
+
+            # Check it against the entitlement before it is recorded. An
+            # administrator entering leave on somebody's behalf may go past
+            # the entitlement deliberately - that is the office's call to
+            # make - but nobody may do it without being told.
+            from core.workweek import working_days_between
+
+            requested_days = working_days_between(start_date, end_date)
+            problems = leave_policy.check_request(
+                employee, leave_type, start_date, end_date, requested_days
+            )
+            is_admin = request.user.is_superuser or request.user.role == 'OFFICE_ADMIN'
+            if problems and not (is_admin and request.POST.get('override')):
+                for problem in problems:
+                    messages.error(request, problem)
+                context = {
+                    'employee': employee,
+                    'leave_types': leave_types,
+                    'entitlement': leave_policy.entitlement_overview(employee),
+                    'viewing_other': employee_id is not None,
+                    'can_override': is_admin,
                 }
                 return render(request, 'core/request_leave.html', context)
 
@@ -487,6 +515,11 @@ def request_leave(request):
                 end_date=end_date,
                 reason=reason
             )
+            if problems:
+                messages.warning(
+                    request,
+                    'Recorded beyond the normal entitlement: ' + ' '.join(problems)
+                )
 
             # Handle attachment
             if 'attachment' in request.FILES:
@@ -504,7 +537,9 @@ def request_leave(request):
     context = {
         'employee': employee,
         'leave_types': leave_types,
+        'entitlement': leave_policy.entitlement_overview(employee),
         'viewing_other': employee_id is not None,
+        'can_override': request.user.is_superuser or request.user.role == 'OFFICE_ADMIN',
     }
     return render(request, 'core/request_leave.html', context)
 

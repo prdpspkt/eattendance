@@ -25,107 +25,119 @@
                 </h6>
             </div>
             <div class="card-body">
-                <form method="post">
+                <form method="post" novalidate>
                     {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                    {% endif %}
 
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="{{ form.name.id_for_label }}" class="form-label">Leave Type Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="{{ form.name.name }}"
-                                   id="{{ form.name.id_for_label }}"
-                                   value="{{ form.name.value|default:'' }}"
-                                   placeholder="e.g., Annual Leave, Sick Leave"
-                                   required>
-                            {% if form.name.errors %}
-                                <div class="text-danger small mt-1">{{ form.name.errors }}</div>
-                            {% endif %}
+                            <label for="{{ form.name.id_for_label }}" class="form-label">
+                                Leave Type Name <span class="text-danger">*</span>
+                            </label>
+                            {{ form.name }}
+                            {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors }}</div>{% endif %}
                         </div>
                         <div class="col-md-6">
-                            <label for="{{ form.code.id_for_label }}" class="form-label">Code <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="{{ form.code.name }}"
-                                   id="{{ form.code.id_for_label }}"
-                                   value="{{ form.code.value|default:'' }}"
-                                   placeholder="e.g., AL, SL, CL"
-                                   required>
-                            {% if form.code.errors %}
-                                <div class="text-danger small mt-1">{{ form.code.errors }}</div>
-                            {% endif %}
-                            <small class="text-muted">Short code for reports</small>
+                            <label for="{{ form.code.id_for_label }}" class="form-label">
+                                Code <span class="text-danger">*</span>
+                            </label>
+                            {{ form.code }}
+                            {% if form.code.errors %}<div class="text-danger small mt-1">{{ form.code.errors }}</div>{% endif %}
+                            <small class="text-muted">{{ form.code.help_text }}</small>
                         </div>
                     </div>
 
                     <div class="mb-3">
                         <label for="{{ form.description.id_for_label }}" class="form-label">Description</label>
-                        <textarea class="form-control" name="{{ form.description.name }}"
-                                  id="{{ form.description.id_for_label }}"
-                                  rows="3"
-                                  placeholder="Describe this leave type">{{ form.description.value|default:'' }}</textarea>
-                        {% if form.description.errors %}
-                            <div class="text-danger small mt-1">{{ form.description.errors }}</div>
-                        {% endif %}
+                        {{ form.description }}
+                        {% if form.description.errors %}<div class="text-danger small mt-1">{{ form.description.errors }}</div>{% endif %}
                     </div>
 
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <label for="{{ form.days_per_year.id_for_label }}" class="form-label">Days Per Year <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" name="{{ form.days_per_year.name }}"
-                                   id="{{ form.days_per_year.id_for_label }}"
-                                   value="{{ form.days_per_year.value|default:'0' }}"
-                                   min="0" required>
-                            {% if form.days_per_year.errors %}
-                                <div class="text-danger small mt-1">{{ form.days_per_year.errors }}</div>
-                            {% endif %}
-                            <small class="text-muted">Days allowed per year</small>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-check mt-4">
-                                <input type="checkbox" class="form-check-input" name="{{ form.is_paid.name }}"
-                                       id="{{ form.is_paid.id_for_label }}"
-                                       {% if form.is_paid.value %}checked{% endif %}>
-                                <label class="form-check-label" for="{{ form.is_paid.id_for_label }}">
-                                    Is Paid Leave
-                                </label>
-                                <small class="d-block text-muted">Check if employees are paid during this leave</small>
-                            </div>
-                            {% if form.is_paid.errors %}
-                                <div class="text-danger small mt-1">{{ form.is_paid.errors }}</div>
-                            {% endif %}
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-check mt-4">
-                                <input type="checkbox" class="form-check-input" name="{{ form.requires_approval.name }}"
-                                       id="{{ form.requires_approval.id_for_label }}"
-                                       {% if form.requires_approval.value %}checked{% endif %}>
-                                <label class="form-check-label" for="{{ form.requires_approval.id_for_label }}">
-                                    Requires Approval
-                                </label>
-                                <small class="d-block text-muted">Check if this leave needs manager approval</small>
-                            </div>
-                            {% if form.requires_approval.errors %}
-                                <div class="text-danger small mt-1">{{ form.requires_approval.errors }}</div>
-                            {% endif %}
-                        </div>
-                    </div>
+                    <hr>
+                    <h6 class="mb-3"><i class="bi bi-sliders" aria-hidden="true"></i> Entitlement rules</h6>
 
                     <div class="mb-3">
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" name="{{ form.is_active.name }}"
-                                   id="{{ form.is_active.id_for_label }}"
-                                   {% if form.is_active.value %}checked{% endif %}>
-                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
-                                Active
-                            </label>
-                            <small class="d-block text-muted">Uncheck to disable this leave type</small>
-                        </div>
-                        {% if form.is_active.errors %}
-                            <div class="text-danger small mt-1">{{ form.is_active.errors }}</div>
-                        {% endif %}
+                        <label for="{{ form.accrual.id_for_label }}" class="form-label">
+                            How it is earned <span class="text-danger">*</span>
+                        </label>
+                        {{ form.accrual }}
+                        {% if form.accrual.errors %}<div class="text-danger small mt-1">{{ form.accrual.errors }}</div>{% endif %}
+                        <small class="text-muted">
+                            Yearly leave is credited every year. Occasional leave is granted only when
+                            the event happens - maternity, a wedding, a death in the family.
+                        </small>
                     </div>
 
-                    {% if form.non_field_errors %}
-                        <div class="alert alert-danger">
-                            {{ form.non_field_errors }}
+                    <div data-policy-section="yearly">
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="{{ form.days_per_year.id_for_label }}" class="form-label">Days credited per year</label>
+                                {{ form.days_per_year }}
+                                {% if form.days_per_year.errors %}<div class="text-danger small mt-1">{{ form.days_per_year.errors }}</div>{% endif %}
+                            </div>
+                            <div class="col-md-5">
+                                <label for="{{ form.carry_forward.id_for_label }}" class="form-label">At the end of the year</label>
+                                {{ form.carry_forward }}
+                                {% if form.carry_forward.errors %}<div class="text-danger small mt-1">{{ form.carry_forward.errors }}</div>{% endif %}
+                            </div>
+                            <div class="col-md-3" data-policy-section="ceiling">
+                                <label for="{{ form.max_accumulation_days.id_for_label }}" class="form-label">Ceiling (days)</label>
+                                {{ form.max_accumulation_days }}
+                                {% if form.max_accumulation_days.errors %}<div class="text-danger small mt-1">{{ form.max_accumulation_days.errors }}</div>{% endif %}
+                            </div>
                         </div>
+                    </div>
+
+                    <div class="row mb-3" data-policy-section="occasional">
+                        <div class="col-md-6">
+                            <label for="{{ form.days_per_occurrence.id_for_label }}" class="form-label">Days granted each time</label>
+                            {{ form.days_per_occurrence }}
+                            {% if form.days_per_occurrence.errors %}<div class="text-danger small mt-1">{{ form.days_per_occurrence.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.max_occurrences_lifetime.id_for_label }}" class="form-label">Times allowed in a career</label>
+                            {{ form.max_occurrences_lifetime }}
+                            {% if form.max_occurrences_lifetime.errors %}<div class="text-danger small mt-1">{{ form.max_occurrences_lifetime.errors }}</div>{% endif %}
+                            <small class="text-muted">Leave empty for no limit.</small>
+                        </div>
+                    </div>
+
+                    <hr>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                {{ form.is_paid }}
+                                <label class="form-check-label" for="{{ form.is_paid.id_for_label }}">Is Paid Leave</label>
+                                <small class="d-block text-muted">Salary continues during this leave</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                {{ form.requires_approval }}
+                                <label class="form-check-label" for="{{ form.requires_approval.id_for_label }}">Requires Approval</label>
+                                <small class="d-block text-muted">Needs an approval before it is granted</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                {{ form.is_active }}
+                                <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Active</label>
+                                <small class="d-block text-muted">Uncheck to withdraw this leave type</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if is_edit %}
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                        Changing these limits does not move anybody's balance on its own. Rebuild the
+                        balances afterwards from
+                        <a href="{% url 'leave_balance_management' %}" class="alert-link">Leave Balances</a>
+                        to apply the new rule to the years already recorded.
+                    </div>
                     {% endif %}
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
@@ -142,25 +154,48 @@
 
         <div class="card mt-4">
             <div class="card-header">
-                <i class="bi bi-info-circle" aria-hidden="true"></i> Leave Type Information
+                <i class="bi bi-info-circle" aria-hidden="true"></i> How the rules work
             </div>
             <div class="card-body">
-                <h6>Understanding Leave Type Settings:</h6>
-                <ul>
-                    <li><strong>Name & Code:</strong> Display name and short code for reports (e.g., Annual Leave - AL)</li>
-                    <li><strong>Days Per Year:</strong> Maximum number of days allowed per year for this leave type</li>
-                    <li><strong>Is Paid:</strong> Whether employees receive salary during this leave</li>
-                    <li><strong>Requires Approval:</strong> Whether leave requests need manager approval before taking effect</li>
-                    <li><strong>Active:</strong> Only active leave types are available for selection in leave requests</li>
+                <ul class="mb-3">
+                    <li><strong>Credited per year:</strong> what arrives at the start of each leave year.</li>
+                    <li><strong>Expires at the end of the year:</strong> anything unused is lost - casual leave.</li>
+                    <li><strong>Accumulates up to a ceiling:</strong> unused days carry over but never exceed
+                        the ceiling - home leave, 30 a year up to 180.</li>
+                    <li><strong>Accumulates without limit:</strong> unused days carry over for ever - sick leave.</li>
+                    <li><strong>Occasional:</strong> nothing is credited yearly. A fixed number of days is
+                        granted when the event happens, up to the career limit - maternity twice,
+                        death rituals four times.</li>
                 </ul>
-                <div class="alert alert-info">
-                    <strong>Example:</strong> Annual Leave with 20 days/year, paid, requires approval<br>
-                    - Employees can request up to 20 days per year<br>
-                    - They receive full salary during leave<br>
-                    - Manager must approve before leave is granted
+                <div class="alert alert-info mb-0">
+                    <strong>Example - home leave:</strong> 30 days a year, accumulates up to a ceiling of 180.
+                    Somebody sitting on 180 who takes 20 days drops to 160, and next year's credit takes
+                    them back to 180 rather than 190.
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    (function () {
+        const accrual = document.querySelector('[data-leave-policy="accrual"]');
+        const carryForward = document.querySelector('[data-leave-policy="carry-forward"]');
+        const yearly = document.querySelector('[data-policy-section="yearly"]');
+        const occasional = document.querySelector('[data-policy-section="occasional"]');
+        const ceiling = document.querySelector('[data-policy-section="ceiling"]');
+        if (!accrual) { return; }
+
+        function sync() {
+            const isOccasional = accrual.value === 'OCCASIONAL';
+            yearly.hidden = isOccasional;
+            occasional.hidden = !isOccasional;
+            ceiling.hidden = isOccasional || carryForward.value !== 'CAPPED';
+        }
+
+        accrual.addEventListener('change', sync);
+        carryForward.addEventListener('change', sync);
+        sync();
+    })();
+</script>
 {% endblock %}

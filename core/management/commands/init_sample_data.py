@@ -77,78 +77,92 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f'Created shift: {shift.name}'))
 
         # Create Leave Types
+        #
+        # Each carries the rule that governs it, not just a day count: whether
+        # it is credited yearly or granted when an event happens, and what
+        # becomes of an unused balance at the year end. The Leave Types page
+        # is where these get changed when the regulations change.
         leave_types = [
             {
-                'name': 'Annual Leave',
-                'code': 'AL',
-                'description': 'Paid annual vacation leave',
-                'days_per_year': 20,
-                'is_paid': True,
-                'requires_approval': True
+                'name': 'Home Leave', 'code': 'HL',
+                'description': 'Credited yearly and accumulates up to a ceiling.',
+                'accrual': 'YEARLY', 'days_per_year': 30,
+                'carry_forward': 'CAPPED', 'max_accumulation_days': 180,
             },
             {
-                'name': 'Sick Leave',
-                'code': 'SL',
-                'description': 'Paid sick leave with medical certificate',
-                'days_per_year': 14,
-                'is_paid': True,
-                'requires_approval': True
+                'name': 'Sick Leave', 'code': 'SL',
+                'description': 'Credited yearly and accumulates without limit.',
+                'accrual': 'YEARLY', 'days_per_year': 12,
+                'carry_forward': 'UNLIMITED',
             },
             {
-                'name': 'Casual Leave',
-                'code': 'CL',
-                'description': 'Paid casual leave for personal reasons',
-                'days_per_year': 10,
-                'is_paid': True,
-                'requires_approval': True
+                'name': 'Casual Leave', 'code': 'CL',
+                'description': 'Credited yearly; anything unused lapses at the year end.',
+                'accrual': 'YEARLY', 'days_per_year': 12,
+                'carry_forward': 'NONE',
             },
             {
-                'name': 'Maternity Leave',
-                'code': 'ML',
-                'description': 'Paid maternity leave',
-                'days_per_year': 90,
-                'is_paid': True,
-                'requires_approval': True
+                'name': 'Festival Leave', 'code': 'FL',
+                'description': 'Credited yearly for festivals; lapses at the year end.',
+                'accrual': 'YEARLY', 'days_per_year': 6,
+                'carry_forward': 'NONE',
             },
             {
-                'name': 'Paternity Leave',
-                'code': 'PL',
-                'description': 'Paid paternity leave',
-                'days_per_year': 7,
-                'is_paid': True,
-                'requires_approval': True
+                'name': 'Maternity Leave', 'code': 'ML',
+                'description': 'Granted when the event happens, twice in a career.',
+                'accrual': 'OCCASIONAL', 'days_per_occurrence': 98,
+                'max_occurrences_lifetime': 2,
             },
             {
-                'name': 'Unpaid Leave',
-                'code': 'UL',
-                'description': 'Unpaid leave for various reasons',
-                'days_per_year': 0,
+                'name': 'Parenting Leave', 'code': 'PL',
+                'description': 'Granted when the event happens, twice in a career.',
+                'accrual': 'OCCASIONAL', 'days_per_occurrence': 15,
+                'max_occurrences_lifetime': 2,
+            },
+            {
+                'name': 'Wedding Leave', 'code': 'WL',
+                'description': "Granted for the employee's own wedding.",
+                'accrual': 'OCCASIONAL', 'days_per_occurrence': 5,
+            },
+            {
+                'name': 'Death Rituals Leave', 'code': 'DR',
+                'description': 'Granted for the funeral rites of a close family member.',
+                'accrual': 'OCCASIONAL', 'days_per_occurrence': 15,
+                'max_occurrences_lifetime': 4,
+            },
+            {
+                'name': 'Unpaid Leave', 'code': 'UL',
+                'description': 'Unpaid leave for various reasons.',
+                'accrual': 'OCCASIONAL', 'days_per_occurrence': 30,
                 'is_paid': False,
-                'requires_approval': True
             },
             {
-                'name': 'Study Leave',
-                'code': 'ST',
-                'description': 'Leave for educational purposes',
-                'days_per_year': 5,
+                'name': 'Study Leave', 'code': 'ST',
+                'description': 'Leave for educational purposes.',
+                'accrual': 'OCCASIONAL', 'days_per_occurrence': 30,
                 'is_paid': False,
-                'requires_approval': True
             },
         ]
 
         for leave_data in leave_types:
+            defaults = {
+                'name': leave_data['name'],
+                'description': leave_data['description'],
+                'accrual': leave_data.get('accrual', 'YEARLY'),
+                'days_per_year': leave_data.get('days_per_year', 0),
+                'carry_forward': leave_data.get('carry_forward', 'NONE'),
+                'max_accumulation_days': leave_data.get('max_accumulation_days'),
+                'days_per_occurrence': leave_data.get('days_per_occurrence'),
+                'max_occurrences_lifetime': leave_data.get('max_occurrences_lifetime'),
+                'is_paid': leave_data.get('is_paid', True),
+                'requires_approval': leave_data.get('requires_approval', True),
+            }
             leave_type, created = LeaveType.objects.get_or_create(
-                code=leave_data['code'],
-                defaults={
-                    'name': leave_data['name'],
-                    'description': leave_data['description'],
-                    'days_per_year': leave_data['days_per_year'],
-                    'is_paid': leave_data['is_paid'],
-                    'requires_approval': leave_data['requires_approval']
-                }
+                code=leave_data['code'], defaults=defaults
             )
             if created:
                 self.stdout.write(self.style.SUCCESS(f'Created leave type: {leave_type.name}'))
+
 
         self.stdout.write(self.style.SUCCESS('\nSample data initialized successfully!'))
         self.stdout.write('\nNext steps:')
