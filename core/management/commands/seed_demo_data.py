@@ -23,11 +23,48 @@ from attendance.models import (
     PUNCH_BREAK_IN, PUNCH_BREAK_OUT, PUNCH_CHECK_IN, PUNCH_CHECK_OUT,
     Absence, Attendance, DailyAttendance, OvertimeRecord,
 )
-from devices.models import Device, DeviceCommand
+from devices.models import Device, DeviceCommand, EmployeeDevice
 from leaves.models import LeaveBalance, LeaveRequest, LeaveType
 from travel_orders.models import TravelExpense, TravelItinerary, TravelOrder
 
 SEED = 20260819
+
+# Every account this command creates gets the same password. These are demo
+# records on a demo database; a per-account password nobody can look up would
+# make the data useless to whoever is trying the system out.
+DEFAULT_PASSWORD = 'Password@123'
+
+# First name, last name, gender. Enough to fill a small office.
+PEOPLE = [
+    ('Anil', 'Adhikari', 'M'), ('Sunita', 'Bhattarai', 'F'),
+    ('Rajesh', 'Shrestha', 'M'), ('Kamala', 'Poudel', 'F'),
+    ('Bikash', 'Maharjan', 'M'), ('Sarita', 'Rai', 'F'),
+    ('Deepak', 'Karki', 'M'), ('Manisha', 'Lamichhane', 'F'),
+    ('Ramesh', 'Chaudhary', 'M'), ('Anjana', 'Basnet', 'F'),
+    ('Suresh', 'Magar', 'M'), ('Bimala', 'Acharya', 'F'),
+    ('Prakash', 'Bhandari', 'M'), ('Rekha', 'Dahal', 'F'),
+    ('Narayan', 'Ghimire', 'M'), ('Sabina', 'Tamang', 'F'),
+    ('Gopal', 'Neupane', 'M'), ('Laxmi', 'Joshi', 'F'),
+    ('Hari', 'Pandey', 'M'), ('Sushmita', 'Khadka', 'F'),
+    ('Kiran', 'Gautam', 'M'), ('Pooja', 'Regmi', 'F'),
+    ('Santosh', 'Thapa', 'M'), ('Nirmala', 'Sapkota', 'F'),
+    ('Binod', 'Kafle', 'M'), ('Sarmila', 'Baral', 'F'),
+    ('Umesh', 'Bista', 'M'), ('Goma', 'Paudel', 'F'),
+    ('Dipesh', 'Rijal', 'M'), ('Muna', 'Sharma', 'F'),
+]
+
+CITIES = [
+    ('Kathmandu', '44600'), ('Lalitpur', '44700'), ('Bhaktapur', '44800'),
+    ('Pokhara', '33700'), ('Chitwan', '44200'), ('Butwal', '32907'),
+    ('Biratnagar', '56613'), ('Dharan', '56700'),
+]
+
+WARDS = [
+    'Ward No. 3, Baneshwor', 'Ward No. 7, Kalanki', 'Ward No. 12, Chabahil',
+    'Ward No. 5, Satdobato', 'Ward No. 9, Balaju', 'Ward No. 2, Sinamangal',
+]
+
+BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-']
 
 LEAVE_REASONS = [
     'Family function at home village.',
@@ -94,6 +131,14 @@ class Command(BaseCommand):
             '--skip-reference', action='store_true',
             help='Do not run init_sample_data first.',
         )
+        parser.add_argument(
+            '--employees', type=int, default=25,
+            help='Ensure at least this many employees exist, creating the shortfall (default: 25).',
+        )
+        parser.add_argument(
+            '--password', default=DEFAULT_PASSWORD,
+            help=f'Password given to every account this command creates (default: {DEFAULT_PASSWORD}).',
+        )
 
     def handle(self, *args, **options):
         self.tz = timezone.get_current_timezone()
@@ -103,10 +148,19 @@ class Command(BaseCommand):
             self.stdout.write('Ensuring reference data (departments, shifts, leave types)...')
             call_command('init_sample_data', verbosity=0)
 
+        # Whoever signs things off. A real Django superuser is the safest
+        # choice - on a fresh install that is the 'admin' account created by
+        # createsuperuser, which may well carry the default EMPLOYEE role.
         self.admin = (
-            User.objects.filter(role=User.UserRole.SUPERUSER).first()
+            User.objects.filter(is_superuser=True, role=User.UserRole.SUPERUSER).first()
             or User.objects.filter(is_superuser=True).first()
+            or User.objects.filter(role=User.UserRole.SUPERUSER).first()
         )
+        if self.admin:
+            self.stdout.write(f"Approvals will be attributed to '{self.admin.username}'.")
+
+        with transaction.atomic():
+            self.seed_employees(options['employees'], options['password'])
         self.employees = list(Employee.objects.select_related('user').order_by('id'))
         if not self.employees:
             self.stderr.write('No employees found - nothing to seed against.')
@@ -129,7 +183,7 @@ class Command(BaseCommand):
             self.seed_leave_balances()
 
         self.stdout.write(self.style.SUCCESS('\nDone. Current row counts:'))
-        for model in (Department, Shift, EmployeeShift, Attendance, DailyAttendance,
+        for model in (User, Employee, Department, Shift, EmployeeShift, Attendance, DailyAttendance,
                       OvertimeRecord, Absence, LeaveBalance, LeaveRequest,
                       TravelOrder, TravelItinerary, TravelExpense, DeviceCommand):
             self.stdout.write(f'  {model._meta.label:<32} {model.objects.count()}')
@@ -153,6 +207,120 @@ class Command(BaseCommand):
     def report(self, label, count):
         style = self.style.SUCCESS if count else self.style.WARNING
         self.stdout.write(style(f'{label}: {count}'))
+
+    def ensure_device(self):
+        """The terminal the generated punches are attributed to.
+
+        A punch with no device is a manual entry as far as the audit trail is
+        concerned, so a fresh install needs a terminal before it can have any
+        device-sourced attendance at all.
+        """
+        device = Device.objects.filter(is_active=True).first() or Device.objects.first()
+        if device:
+            return device
+        return Device.objects.create(
+            name='Office',
+            ip_address='192.168.1.201',
+            port=4370,
+            location='First Floor',
+            serial_number='DEMO-0000001',
+            is_active=True,
+        )
+
+    # ------------------------------------------------------------------
+    # people
+    # ------------------------------------------------------------------
+    def seed_employees(self, target, password):
+        """Top the staff list up to ``target`` people.
+
+        A fresh install has nothing but the superuser, and every other phase
+        here hangs off an Employee - so without this the command has nothing
+        to seed against. Existing staff are never touched; only the shortfall
+        is created.
+        """
+        rng = self.rng_for('employees')
+        missing = max(0, target - Employee.objects.count())
+        if not missing:
+            self.report('Employees created', 0)
+            return
+
+        used_ids = set(Employee.objects.values_list('employee_id', flat=True))
+        used_uids = {
+            uid for uid in Employee.objects.values_list('device_uid', flat=True)
+            if uid is not None
+        }
+        used_usernames = set(User.objects.values_list('username', flat=True))
+        device = self.ensure_device()
+
+        def next_employee_id():
+            number = 1
+            while f'EMP{number:04d}' in used_ids:
+                number += 1
+            used_ids.add(f'EMP{number:04d}')
+            return f'EMP{number:04d}'
+
+        def next_device_uid():
+            uid = 1
+            while uid in used_uids:
+                uid += 1
+            used_uids.add(uid)
+            return uid
+
+        created = 0
+        for first, last, gender in PEOPLE:
+            if created >= missing:
+                break
+            base = f'{first}{last}'.lower()
+            username = base
+            suffix = 2
+            while username in used_usernames:
+                username = f'{base}{suffix}'
+                suffix += 1
+            used_usernames.add(username)
+
+            # One person in ten runs the office rather than just working in
+            # it, so the OFFICE_ADMIN screens have somebody to log in as.
+            role = User.UserRole.OFFICE_ADMIN if created % 10 == 3 else User.UserRole.EMPLOYEE
+            user = User.objects.create_user(
+                username=username,
+                email=f'{username}@example.com',
+                password=password,
+                first_name=first,
+                last_name=last,
+                role=role,
+                phone=f'98{rng.randint(10000000, 79999999)}',
+            )
+
+            city, postal = rng.choice(CITIES)
+            device_uid = next_device_uid()
+            employee = Employee.objects.create(
+                user=user,
+                employee_id=next_employee_id(),
+                gender=gender,
+                date_of_birth=self.today - timedelta(days=rng.randint(8000, 20000)),
+                address=rng.choice(WARDS),
+                city=city,
+                postal_code=postal,
+                emergency_contact_name=f'{rng.choice(PEOPLE)[0]} {last}',
+                emergency_contact_phone=f'98{rng.randint(10000000, 79999999)}',
+                blood_group=rng.choice(BLOOD_GROUPS),
+                join_date=self.today - timedelta(days=rng.randint(120, 3200)),
+                employment_status=rng.choices(
+                    ['ACTIVE', 'ON_LEAVE', 'RESIGNED'], weights=[92, 5, 3]
+                )[0],
+                device_uid=device_uid,
+            )
+
+            if device:
+                EmployeeDevice.objects.get_or_create(
+                    device=device, device_uid=device_uid,
+                    defaults={'employee': employee, 'user_name': user.get_full_name()},
+                )
+            created += 1
+
+        self.report('Employees created', created)
+        if created:
+            self.stdout.write(f'  Sign-in password for the new accounts: {password}')
 
     # ------------------------------------------------------------------
     # core records
@@ -226,7 +394,7 @@ class Command(BaseCommand):
     # ------------------------------------------------------------------
     def generate_punches(self, days):
         self.rng = self.rng_for('punches')
-        device = Device.objects.filter(is_active=True).first() or Device.objects.first()
+        device = self.ensure_device()
         start = self.today - timedelta(days=days)
         end = self.today - timedelta(days=1)
 
@@ -463,12 +631,14 @@ class Command(BaseCommand):
                 if not is_weekend(candidate) and candidate not in punched
             ]
             for absent_day in rng.sample(missed, min(len(missed), rng.randint(1, 4))):
+                # Draw first, skip second - see seed_leave_requests.
+                status = rng.choices(['APPROVED', 'PENDING', 'REJECTED'], weights=[65, 25, 10])[0]
+                reason = rng.choice(ABSENCE_REASONS)
                 if Absence.objects.filter(employee=employee, date=absent_day).exists():
                     continue
-                status = rng.choices(['APPROVED', 'PENDING', 'REJECTED'], weights=[65, 25, 10])[0]
                 absence = Absence(
                     employee=employee, date=absent_day,
-                    reason=rng.choice(ABSENCE_REASONS), status=status,
+                    reason=reason, status=status,
                 )
                 if status != 'PENDING':
                     absence.approved_by = self.admin
